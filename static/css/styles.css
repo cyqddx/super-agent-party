@@ -3867,7 +3867,6 @@ body {
 }
 
 .extensions-list {
-  max-height: 400px;
   overflow-y: auto;
 }
 
@@ -3875,6 +3874,8 @@ body {
   margin: 10px 0;
   cursor: pointer;
   transition: all 0.3s;
+  background-color: var(--el-bg-color-page)!important;
+  color: var(--el-text-color-primary)!important;
 }
 
 .extension-card:hover {

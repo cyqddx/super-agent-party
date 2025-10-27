@@ -6745,6 +6745,22 @@ let vue_methods = {
       }
     }
   },
+  async openExtfile(){
+    const response = await fetch('/api/get_extfile',{
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    if (response.ok) {
+      // 拿到Extfile
+      const data = await response.json();
+      let extfile = data.extfile;    // 打开文件夹
+      if (this.isElectron){
+        window.electronAPI.openPath(extfile);
+      }
+    }
+  },
   async changeHAEnabled(){
     if (this.HASettings.enabled){
       const response = await fetch('/start_HA',{
@@ -9504,5 +9520,18 @@ clearSegments() {
     if (this.chatAreaOpen && this.sidePanelOpen) {
       this.updatePanelWidths();
     }
+  },
+  // 在独立窗口中打开扩展
+  async openExtensionInWindow(extension) {
+    let url = `${this.partyURL}/ext/${extension.id}/index.html`;
+    this.loadExtension(extension);
+    this.showExtensionsDialog = false;
+    // extension.systemPrompt填充到this.messages[0].content
+    if (this.currentExtension) {
+      this.messages[0].content = this.currentExtension.systemPrompt;
+    }else {
+      this.messages[0].content = ''; // 清空
+    }
+    window.open(url, '_blank');
   },
 }

@@ -343,13 +343,26 @@ if ('serviceWorker' in navigator) {
               :class="{ active: currentExtension && currentExtension.id === ext.id }"
               @click="switchExtension(ext)">
               
-              <!-- 右上角图标 -->
+              <!-- 右上角按钮组 -->
               <div class="btn-top-right">
+                <!-- 浏览器打开按钮 -->
                 <el-button
-                  type="primary"
+                  type="default"
                   circle
+                  size="small"
                   @click.stop="openExtension(ext);switchExtension(ext)">
                   <i class="fa-solid fa-external-link"></i>
+                </el-button>
+                
+                <!-- 独立窗口打开按钮（仅在Electron环境下显示） -->
+                <el-button
+                  v-if="isElectron"
+                  type="primary"
+                  circle
+                  size="small"
+                  @click.stop="openExtensionInWindow(ext)"
+                  style="margin-left: 8px;">
+                  <i class="fa-solid fa-window-restore"></i>
                 </el-button>
               </div>
 
@@ -981,7 +994,7 @@ if ('serviceWorker' in navigator) {
                 ref="sidePanelRef"
                 :class="{ collapsed: !sidePanelOpen }" 
                 v-show="sidePanelOpen">
-              <div class="side-panel-scroll" ref="messagesPanel" :style="{ overflow: sidePanelURL ? 'hidden' : 'auto' }">
+              <div class="side-panel-scroll" ref="messagesPanel" :style="{ overflow: sidePanelURL||!sidePanelText ? 'hidden' : 'auto' }">
                 <iframe class="side-panel-iframe" 
                         v-if="sidePanelURL" 
                         :src="sidePanelURL" 
@@ -990,12 +1003,51 @@ if ('serviceWorker' in navigator) {
                         style="width: 100%; height: 100%;">
                 </iframe>
                 <div v-else-if="sidePanelText" v-html="defaultSidePanelHTML" class="side-panel-content"></div>
-                <el-empty v-else :description="t('NotExtension')">
-                  <div class="empty-tip">
-                    <a href="#" @click.stop.prevent="switchToExtensionPage">{{ t('goToExtensionPage') }}</a>
-                    {{ t('add') }}
+                <div v-else class="extensions-list" style="margin: 10px;height: 100%;">
+                  <!-- 默认视图选项 -->
+                  <el-card 
+                    class="extension-card default-view-card"
+                    :class="{ active: currentExtension === null }"
+                    @click="resetToDefaultView()">
+                    <div class="extension-info">
+                      <h3>{{ t('defaultView') }}</h3>
+                      <p>{{ t('defaultViewDescription') }}</p>
+                    </div>
+                  </el-card>
+                  
+                  <!-- 分隔线 -->
+                  <div class="extensions-divider" v-if="extensions.length > 0">
+                    <span>{{ t('availableExtensions') }}</span>
                   </div>
-                </el-empty>
+                  <!-- 扩展列表 -->
+                  <el-empty v-if="extensions.length === 0" :description="t('noExtensionsFound')" ></el-empty>
+                    <el-card
+                      v-for="ext in extensions"
+                      :key="ext.id"
+                      class="extension-card"
+                      :class="{ active: currentExtension && currentExtension.id === ext.id }"
+                      @click="switchExtension(ext)">
+                      
+                      <!-- 右上角图标 -->
+                      <div class="btn-top-right">
+                        <el-button
+                          type="primary"
+                          circle
+                          @click.stop="openExtension(ext);switchExtension(ext)">
+                          <i class="fa-solid fa-external-link"></i>
+                        </el-button>
+                      </div>
+
+                      <div class="extension-info">
+                        <h3>{{ ext.name }}</h3>
+                        <p>{{ ext.description }}</p>
+                        <div class="extension-meta">
+                          <span>v{{ ext.version }}</span>
+                          <span>{{ ext.author }}</span>
+                        </div>
+                      </div>
+                    </el-card>
+                </div>
               </div>
             </div>
           </div>
@@ -8061,6 +8113,7 @@ if ('serviceWorker' in navigator) {
                             <!-- 启动按钮 -->
                             <el-tooltip :content="t('start_table_pet')" placement="top">
                               <el-button 
+                                v-if="isElectron"
                                 type="primary" 
                                 @click="startVRM" 
                                 circle
@@ -9143,6 +9196,9 @@ if ('serviceWorker' in navigator) {
                         </el-button>
                       </el-tooltip>
                       <div class="card-actions">
+                        <el-button v-if="isElectron" @click="openExtensionInWindow(extension)" type="primary" circle size="small">
+                          <i class="fa-solid fa-window-restore"></i>
+                        </el-button>
                         <el-button @click="openExtension(extension)" type="default" circle size="small">
                           <i class="fa-solid fa-external-link"></i>
                         </el-button>
@@ -9211,6 +9267,11 @@ if ('serviceWorker' in navigator) {
                   <div class="plugin-header">
                     <h3>{{t('availableExtensions')}}</h3>
                     <div class="plugin-button-group">
+                      <el-button 
+                        @click="openExtfile" 
+                        type="primary">
+                        {{t('openExtfile')}}
+                      </el-button>
                       <el-button 
                         @click="openRepository('https://github.com/super-agent-party/super-agent-party.github.io')" 
                         type="primary">
