@@ -15,6 +15,7 @@ const app = Vue.createApp({
   beforeDestroy() {
     if (this.behaviorTimeTimer)   clearInterval(this.behaviorTimeTimer)
     if (this.behaviorNoInputTimer) clearInterval(this.behaviorNoInputTimer)
+    if (this.vrmPollTimer) clearInterval(this.vrmPollTimer)
     clearInterval(this.behaviorCycleTimer);
     this.cycleTimers.forEach(timer => {
       if (timer) clearInterval(timer);
@@ -38,7 +39,7 @@ const app = Vue.createApp({
     window.addEventListener('keydown', this.handleKeyDown)
     window.addEventListener('keyup', this.handleKeyUp)
     window.addEventListener('resize', this.checkMobile);
-
+    this.pollVRMStatus()   // 启动轮询
     if (isElectron) {
       this.isMac = window.electron.isMac;
       this.isWindows = window.electron.isWindows;

@@ -1466,7 +1466,7 @@ function startChunkAnimation(chunkId, chunkState) {
             }
 
             // 根据音量驱动口型
-            const intensity = Math.min(average / 6, 1.0); // 40是敏感度系数，可调整
+            const intensity = Math.min(average / 400, 1.0); // 40是敏感度系数，可调整
             if (intensity > 0.05) { // 阈值，防止背景噪音导致嘴动
                 const mouthOpen = Math.min(intensity * 1.5, max_mouthOpen);
                 currentVrm.expressionManager.setValue('aa', mouthOpen); 
@@ -1541,7 +1541,6 @@ async function startLipSyncForChunk(data) {
         const audio = new Audio();
         audio.crossOrigin = 'anonymous';
         audio.src = data.audioDataUrl;
-        audio.volume = 0.001; // 静音播放，我们只关心数据
         chunkState.audio = audio;
 
         await new Promise((resolve, reject) => {

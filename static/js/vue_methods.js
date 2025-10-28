@@ -5766,7 +5766,7 @@ let vue_methods = {
             
         try {
           this.currentAudio = new Audio(audioChunk.url);
-          
+          this.currentAudio.volume = this.vrmOnline ? 0.01 : 1;
           // 发送 Base64 数据到 VRM
           this.sendTTSStatusToVRM('startSpeaking', {
             audioDataUrl: this.cur_audioDatas[currentIndex],
@@ -5804,7 +5804,16 @@ let vue_methods = {
         }
       }
     },
-
+    pollVRMStatus() {
+      this.vrmPollTimer = setInterval(async () => {
+        try {
+          const r = await fetch('/tts/status').then(r => r.json())
+          this.vrmOnline = r.vrm_connections > 0
+        } catch (e) {
+          this.vrmOnline = false
+        }
+      }, 3000)
+    },
     // 停止音频播放（用于停止生成时）
     stopAudioPlayback() {
       // 这里可以添加停止当前播放音频的逻辑

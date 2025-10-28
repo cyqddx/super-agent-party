@@ -646,6 +646,8 @@ let vue_data = {
       {"name": "behaviorBotton", "enabled": false}
     ],
     showVrmModelDialog: false,
+    vrmOnline: false,   // 新增
+    vrmPollTimer: null, // 新增
     newVrmModel: {
       name: '',
       displayName: '',
