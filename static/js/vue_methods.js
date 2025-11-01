@@ -3181,6 +3181,7 @@ let vue_methods = {
               disabled: false,
               tools:JSON.parse(tools)    
             };
+            console.log('tool:'+JSON.parse(tools));
             await this.autoSaveSettings();
             showNotification(this.t('mcpAdded'), 'success');
           } else if (status.startsWith('failed')) {

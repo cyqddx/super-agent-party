@@ -340,7 +340,6 @@ let vue_data = {
     },
     chromeMCPSettings: {
       enabled: false,
-      url: 'http://127.0.0.1:12306/mcp',
     },
     knowledgeBases: [],
     KBSettings: {

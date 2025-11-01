@@ -4037,7 +4037,3 @@ body {
   display: flex;
   gap: 8px;
 }
-
-.card-actions .el-button:last-child {
-  margin-left: auto;       /* 把删除按钮顶到最右边 */
-}

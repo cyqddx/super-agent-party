@@ -1020,11 +1020,11 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
         if get_a2a_tool_fuction:
             tools.append(get_a2a_tool_fuction)
         if settings["HASettings"]["enabled"]:
-            ha_tool = await HA_client.get_openai_functions()
+            ha_tool = await HA_client.get_openai_functions(disable_tools=[])
             if ha_tool:
                 tools.extend(ha_tool)
         if settings['chromeMCPSettings']['enabled']:
-            chromeMCP_tool = await ChromeMCP_client.get_openai_functions()
+            chromeMCP_tool = await ChromeMCP_client.get_openai_functions(disable_tools=[])
             if chromeMCP_tool:
                 tools.extend(chromeMCP_tool)
         if settings['CLISettings']['enabled']:
@@ -2717,11 +2717,11 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
     if get_a2a_tool_fuction:
         tools.append(get_a2a_tool_fuction)
     if settings["HASettings"]["enabled"]:
-        ha_tool = await HA_client.get_openai_functions()
+        ha_tool = await HA_client.get_openai_functions(disable_tools=[])
         if ha_tool:
             tools.extend(ha_tool)
     if settings['chromeMCPSettings']['enabled']:
-        chromeMCP_tool = await ChromeMCP_client.get_openai_functions()
+        chromeMCP_tool = await ChromeMCP_client.get_openai_functions(disable_tools=[])
         if chromeMCP_tool:
             tools.extend(chromeMCP_tool)
     if settings['CLISettings']['enabled']:
@@ -4660,8 +4660,10 @@ async def get_mcp_status(mcp_id: str):
     global mcp_client_list, mcp_status
     status = mcp_status.get(mcp_id, "not_found")
     if status == "ready":
+        # 等待1秒，确保所有工具都已加载
+        await asyncio.sleep(1)
         # 保证 _tools 里都是可序列化的 dict / list / 基本类型
-        tools = await mcp_client_list[mcp_id].get_openai_functions()
+        tools = await mcp_client_list[mcp_id].get_openai_functions(disable_tools=[])
         tools = json.dumps(mcp_client_list[mcp_id]._tools_list)
         return {"mcp_id": mcp_id, "status": status, "tools": tools}
     return {"mcp_id": mcp_id, "status": status, "tools": []}
@@ -4888,9 +4890,10 @@ async def stop_HA():
 @app.post("/start_ChromeMCP")
 async def start_ChromeMCP(request: Request):
     data = await request.json()
-    ha_config = {
-        "type": "streamablehttp",
-        "url": data['data']['url']
+    Chrome_config = {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["@browsermcp/mcp@latest"]
     }
 
     global ChromeMCP_client
@@ -4909,7 +4912,7 @@ async def start_ChromeMCP(request: Request):
 
     try:
         ChromeMCP_client = McpClient()
-        await ChromeMCP_client.initialize("ChromeMCP", ha_config, on_failure_callback=on_failure)
+        await ChromeMCP_client.initialize("ChromeMCP", Chrome_config, on_failure_callback=on_failure)
 
         # 等一小段时间验证连接确实活了
         try:

@@ -5150,29 +5150,30 @@ if ('serviceWorker' in navigator) {
                           <el-link
                             type="primary"
                             :underline="false"
-                            href="https://github.com/hangwin/mcp-chrome/releases" 
+                            href="https://browsermcp.io/install" 
                             target="_blank"
                           >
                             <el-icon class="mr-1">
                               <i class="fa-solid fa-key"></i>
-                            </el-icon>{{ t('gotoGithub') }}
+                            </el-icon>{{ t('gotoBrowserExtension') }}
+                          </el-link>
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://nodejs.org/en/download" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('downloadNodeJS') }}
                           </el-link>
                         </span>
                       </div>
                       <el-switch v-model="chromeMCPSettings.enabled" @click.stop @change="changeChromeMCPEnabled"/>
                     </div>
                     <div class="tool-content">
-                      <el-form-item :label="t('baseURL')" class="form-item-align">
-                        <el-input
-                          v-model="chromeMCPSettings.url"
-                          :placeholder="t('urlPlaceholder')"
-                          @input="autoSaveSettings"
-                          class="full-width-input"
-                        />
-                      </el-form-item>
                       <el-alert type="info" :closable="false" class="mb-2">
                         <div class="alert-content">
-                          {{ t('browserNotice') }}<br>
                           {{ t('browserNotice1') }}<br>
                           {{ t('browserNotice2') }}<br>
                           {{ t('browserNotice3') }}
@@ -9300,7 +9301,7 @@ if ('serviceWorker' in navigator) {
                         <el-button v-if="isElectron" @click="openExtensionInWindow(extension)" type="primary" circle size="small">
                           <i class="fa-solid fa-window-restore"></i>
                         </el-button>
-                        <el-button @click="openExtension(extension)" type="default" circle size="small" style="margin: 0;">
+                        <el-button @click="openExtension(extension)" type="default" circle size="small">
                           <i class="fa-solid fa-external-link"></i>
                         </el-button>
                         <!-- 更新删除按钮样式 -->
