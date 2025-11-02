@@ -41,11 +41,18 @@ jobs:
       - name: Build Python backend
         run: uv run pyinstaller server.spec
 
+      - name: Fontend Install Node.js dependencies
+        shell: bash
+        run: |
+          cd static
+          npm ci
+          cd ..
+
       - name: Copy node_modules to dist/server/_internal
         shell: bash
         run: |
-          mkdir -p dist/server/_internal/node_modules
-          cp -r node_modules/* dist/server/_internal/node_modules/
+          mkdir -p dist/server/_internal/static/node_modules
+          cp -r static/node_modules/* dist/server/_internal/static/node_modules/
 
       - name: Build and Publish Electron app
         shell: bash

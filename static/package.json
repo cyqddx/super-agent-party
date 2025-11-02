@@ -1,11 +1,12 @@
 {
-  "name": "mini",
-  "version": "1.0.0",
-  "description": "",
+  "name": "super-agent-party",
+  "version": "v0.3.2",
+  "description": "超级智能体派对v 0.3.2 | 轻松链接一切!",
   "license": "AGPL-3.0",
-  "author": "",
-  "type": "commonjs",
-  "main": "index.js",
+  "author": {
+    "name": "Heshengtao",
+    "email": "hst97@qq.com"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

@@ -4058,3 +4058,14 @@ body {
   font-size: 16px;
   color: var(--el-text-color);
 }
+
+.line-box {
+  display: flex;
+  gap: 8px;          /* 间距自己调 */
+  align-items: center;
+}
+
+.fill-input {
+  flex: 1;           /* 动态占满剩余宽度 */
+  min-width: 0;      /* 防止 flex 子项溢出 */
+}

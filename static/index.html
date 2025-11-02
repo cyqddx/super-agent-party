@@ -9367,10 +9367,21 @@ if ('serviceWorker' in navigator) {
                   width="80%"
                 >
                   <!-- GitHub 地址输入 -->
-                  <el-input
-                    v-model="newExtensionUrl"
-                    placeholder="https://github.com/owner/repo"
-                  ></el-input>
+                  <div class="line-box">
+                    <el-input
+                      v-model="newExtensionUrl"
+                      placeholder="https://github.com/owner/repo"
+                      class="fill-input"
+                    ></el-input>
+                    <el-button
+                      type="primary"
+                      :loading="installLoading"
+                      :disabled="!newExtensionUrl.trim()"
+                      @click="addExtension"
+                    >
+                      {{ t('add') }}
+                    </el-button>
+                  </div>
 
                   <!-- Electron 额外功能 -->
                   <div v-if="isElectron" style="margin-top: 12px;">
@@ -9455,18 +9466,6 @@ if ('serviceWorker' in navigator) {
                       </div>
                     </div>
                   </div>
-
-                  <template #footer>
-                    <el-button @click="showExtensionForm = false">{{ t('cancel') }}</el-button>
-                    <el-button
-                      type="primary"
-                      :loading="installLoading"
-                      @click="addExtension"
-                      :disabled="!newExtensionUrl.trim()"
-                    >
-                      {{ t('add') }}
-                    </el-button>
-                  </template>
                 </el-dialog>
               </div>
               <!-- OpenAI风格API -->
