@@ -173,6 +173,17 @@
     "chromeMCPSettings": {
       "enabled": false
     },
+    "sqlSettings":{
+      "enabled": false,
+      "engine": "sqlite",
+      "dbPath": "",
+      "user": "",
+      "password": "",
+      "host":"",
+      "port":5432,
+      "dbname": "",
+      "dbpath": ""
+    },
     "custom_http":[],
     "qqBotConfig": {
       "QQAgent":"super-model",

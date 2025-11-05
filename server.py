@@ -76,6 +76,7 @@ client = None
 reasoner_client = None
 HA_client = None
 ChromeMCP_client = None
+sql_client = None
 mcp_client_list = {}
 locales = {}
 _TOOL_HOOKS = {}
@@ -511,7 +512,7 @@ async def get_image_content(image_url: str) -> str:
     return content
 
 async def dispatch_tool(tool_name: str, tool_params: dict,settings: dict) -> str | List | AsyncIterator[str] | None :
-    global mcp_client_list,_TOOL_HOOKS,HA_client,ChromeMCP_client
+    global mcp_client_list,_TOOL_HOOKS,HA_client,ChromeMCP_client,sql_client
     print("dispatch_tool",tool_name,tool_params)
     from py.web_search import (
         DDGsearch_async, 
@@ -619,6 +620,16 @@ async def dispatch_tool(tool_name: str, tool_params: dict,settings: dict) -> str
         Chrome_tool_list = ChromeMCP_client._tools
         if tool_name in Chrome_tool_list:
             result = await ChromeMCP_client.call_tool(tool_name, tool_params)
+            if isinstance(result,str):
+                return result
+            elif hasattr(result, 'model_dump'):
+                return str(result.model_dump())
+            else:
+                return str(result)
+    if settings["sqlSettings"]["enabled"]:
+        sql_tool_list = sql_client._tools
+        if tool_name in sql_tool_list:
+            result = await sql_client.call_tool(tool_name, tool_params)
             if isinstance(result,str):
                 return result
             elif hasattr(result, 'model_dump'):
@@ -745,7 +756,7 @@ async def images_add_in_messages(request_messages: List[Dict], images: List[Dict
     return messages
 
 async def tools_change_messages(request: ChatRequest, settings: dict):
-    global HA_client,ChromeMCP_client
+    global HA_client,ChromeMCP_client,sql_client
     newttsList = []
     if request.messages and request.messages[0]['role'] == 'system' and request.messages[0]['content'] != '':
         basic_message = "你必须使用用户使用的语言与之交流，例如：当用户使用中文时，你也必须尽可能地使用中文！当用户使用英文时，你也必须尽可能地使用英文！以此类推！"
@@ -916,7 +927,7 @@ def get_drs_stage_system_message(DRS_STAGE,user_prompt,full_content):
     return search_prompt
 
 async def generate_stream_response(client,reasoner_client, request: ChatRequest, settings: dict,fastapi_base_url,enable_thinking,enable_deep_research,enable_web_search,async_tools_id):
-    global mcp_client_list,HA_client,ChromeMCP_client
+    global mcp_client_list,HA_client,ChromeMCP_client,sql_client
     DRS_STAGE = 1 # 1: 明确用户需求阶段 2: 工具调用阶段 3: 生成结果阶段
     if len(request.messages) > 2:
         DRS_STAGE = 2
@@ -1036,6 +1047,10 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
             chromeMCP_tool = await ChromeMCP_client.get_openai_functions(disable_tools=[])
             if chromeMCP_tool:
                 tools.extend(chromeMCP_tool)
+        if settings['sqlSettings']['enabled']:
+            sql_tool = await sql_client.get_openai_functions(disable_tools=[])
+            if sql_tool:
+                tools.extend(sql_tool)
         if settings['CLISettings']['enabled']:
             if settings['CLISettings']['engine'] == 'cc':
                 tools.append(claude_code_tool)
@@ -2619,7 +2634,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
         )
 
 async def generate_complete_response(client,reasoner_client, request: ChatRequest, settings: dict,fastapi_base_url,enable_thinking,enable_deep_research,enable_web_search):
-    global mcp_client_list,HA_client,ChromeMCP_client
+    global mcp_client_list,HA_client,ChromeMCP_client,sql_client
     DRS_STAGE = 1 # 1: 明确用户需求阶段 2: 工具调用阶段 3: 生成结果阶段
     if len(request.messages) > 2:
         DRS_STAGE = 2
@@ -2739,6 +2754,10 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
         chromeMCP_tool = await ChromeMCP_client.get_openai_functions(disable_tools=[])
         if chromeMCP_tool:
             tools.extend(chromeMCP_tool)
+    if settings['sqlSettings']['enabled']:
+        sql_tool = await sql_client.get_openai_functions(disable_tools=[])
+        if sql_tool:
+            tools.extend(sql_tool)
     if settings['CLISettings']['enabled']:
         if settings['CLISettings']['engine'] == 'cc':
             tools.append(claude_code_tool)
@@ -4675,8 +4694,6 @@ async def get_mcp_status(mcp_id: str):
     global mcp_client_list, mcp_status
     status = mcp_status.get(mcp_id, "not_found")
     if status == "ready":
-        # 等待1秒，确保所有工具都已加载
-        await asyncio.sleep(1)
         # 保证 _tools 里都是可序列化的 dict / list / 基本类型
         tools = await mcp_client_list[mcp_id].get_openai_functions(disable_tools=[])
         tools = json.dumps(mcp_client_list[mcp_id]._tools_list)
@@ -4738,7 +4755,16 @@ async def process_mcp(mcp_id: str):
             # 回调里已经关过 client，这里只需保证状态一致
             mcp_client_list[mcp_id].disabled = True
             return
-
+        tool = []
+        retry = 0 
+        while tool == [] and retry < 10:
+            try:
+                tool = await mcp_client_list[mcp_id].get_openai_functions(disable_tools=[])
+            except Exception as e:
+                print(f"获取工具失败: {str(e)}")
+            finally:
+                retry += 1
+                await asyncio.sleep(0.5)
         mcp_status[mcp_id] = "ready"
         mcp_client_list[mcp_id].disabled = False
 
@@ -4958,6 +4984,101 @@ async def stop_ChromeMCP():
         })
     except Exception as e:
         ChromeMCP_client = None
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post("/start_sql")
+async def start_sql(request: Request):
+    data = await request.json()
+    sql_args = []
+    user = str(data['data'].get('user', '')).strip()
+    password = str(data['data'].get('password', '')).strip()
+    host = str(data['data'].get('host', '')).strip()
+    port = str(data['data'].get('port', '')).strip()
+    dbname = str(data['data'].get('dbname', '')).strip()
+    dbpath = str(data['data'].get('dbpath', '')).strip()
+    sql_url = ""
+    if (data['data']['engine']=='sqlite'):
+        sql_args = ["--from", "mcp-alchemy==2025.8.15.91819",
+               "--refresh-package", "mcp-alchemy", "mcp-alchemy"]
+        sql_url = f"sqlite:///{dbpath}"
+        print(sql_url)
+    elif (data['data']['engine']=='mysql'):
+        sql_args = ["--from", "mcp-alchemy==2025.8.15.91819", "--with", "pymysql",
+               "--refresh-package", "mcp-alchemy", "mcp-alchemy"]
+        sql_url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{dbname}"
+    elif (data['data']['engine']=='postgres'):
+        sql_args = ["--from", "mcp-alchemy==2025.8.15.91819", "--with", "psycopg2-binary",
+               "--refresh-package", "mcp-alchemy", "mcp-alchemy"]
+        sql_url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+    elif (data['data']['engine']=='mssql'):
+        sql_args = ["--from", "mcp-alchemy==2025.8.15.91819", "--with", "pymssql",
+               "--refresh-package", "mcp-alchemy", "mcp-alchemy"]
+        sql_url = f"mssql+pymssql://{user}:{password}@{host}:{port}/{dbname}"
+    elif (data['data']['engine']=='oracle'):
+        sql_args = ["--from", "mcp-alchemy==2025.8.15.91819", "--with", "oracledb",
+               "--refresh-package", "mcp-alchemy", "mcp-alchemy"]
+        sql_url = f"oracle+oracledb://{user}:{password}@{host}:{port}/{dbname}"
+
+    sql_config = {
+        "type": "stdio",
+        "command": "uvx",
+        "args": sql_args,
+        "env": {
+            "DB_URL": sql_url.strip(),
+        }
+    }
+
+    global sql_client
+    if sql_client is not None:
+        # 已初始化过
+        return JSONResponse({"status": "ready", "enabled": True})
+
+    # 用来通知“连接失败”的事件
+    conn_failed_event = asyncio.Event()
+    failure_reason = None
+
+    async def on_failure(error_message: str):
+        nonlocal failure_reason
+        failure_reason = error_message
+        conn_failed_event.set()
+
+    try:
+        sql_client = McpClient()
+        await sql_client.initialize("sqlMCP", sql_config, on_failure_callback=on_failure)
+
+        # 等一小段时间验证连接确实活了
+        try:
+            # 5 秒内如果事件被 set，说明连接失败
+            await asyncio.wait_for(conn_failed_event.wait(), timeout=5.0)
+            # 走到这里说明失败了
+            raise RuntimeError(f"sqlMCP client connection failed: {failure_reason}")
+        except asyncio.TimeoutError:
+            # 2 秒无事发生，认为连接成功
+            pass
+
+        return JSONResponse({"status": "ready", "enabled": True})
+    except Exception as e:
+        sql_client = None
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/stop_sql")
+async def stop_sql():
+    global sql_client
+    try:
+        if sql_client is not None:
+            await sql_client.close()
+            sql_client = None
+            print(f"sqlMCP client stopped")
+        return JSONResponse({
+            "status": "stopped",
+            "enabled": False
+        })
+    except Exception as e:
+        sql_client = None
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}

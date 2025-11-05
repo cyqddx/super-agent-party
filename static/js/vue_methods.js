@@ -1093,6 +1093,7 @@ let vue_methods = {
           this.qcSettings = data.data.qcSettings || this.qcSettings;
           this.HASettings = data.data.HASettings || this.HASettings;
           this.chromeMCPSettings = data.data.chromeMCPSettings || this.chromeMCPSettings;
+          this.sqlSettings = data.data.sqlSettings || this.sqlSettings;
           this.KBSettings = data.data.KBSettings || this.KBSettings;
           this.textFiles = data.data.textFiles || this.textFiles;
           this.imageFiles = data.data.imageFiles || this.imageFiles;
@@ -1143,6 +1144,9 @@ let vue_methods = {
           };
           if (this.chromeMCPSettings.enabled){
             this.changeChromeMCPEnabled();
+          }
+          if (this.sqlSettings.enabled){
+            this.changeSqlEnabled();
           }
           this.changeMemory();
           // this.target_lang改成navigator.language || navigator.userLanguage;
@@ -1924,6 +1928,7 @@ let vue_methods = {
           qcSettings: this.qcSettings,
           HASettings: this.HASettings,
           chromeMCPSettings: this.chromeMCPSettings,
+          sqlSettings: this.sqlSettings,
           KBSettings: this.KBSettings,
           textFiles: this.textFiles,
           imageFiles: this.imageFiles,
@@ -6883,6 +6888,47 @@ let vue_methods = {
     }
     this.autoSaveSettings();
   },
+
+  async changeSqlEnabled(){
+    if (this.sqlSettings.enabled){
+      const response = await fetch('/start_sql',{
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          data: this.sqlSettings
+        })
+      });
+      if (response.ok){
+        const data = await response.json();
+        console.log(data);
+        showNotification(this.t('success_start_sqlControl'));
+      }else {
+        this.sqlSettings.enabled = false;
+        console.error('启动sql失败');
+        showNotification(this.t('error_start_sqlControl'), 'error');
+      }
+    }else{
+      const response = await fetch('/stop_sql',{
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+      });
+      if (response.ok){
+        const data = await response.json();
+        console.log(data);
+        showNotification(this.t('success_stop_sqlControl'));
+      }else {
+        this.sqlSettings.enabled = true;
+        console.error('停止sql失败');
+        showNotification(this.t('error_stop_sqlControl'), 'error');
+      }
+    }
+    this.autoSaveSettings();
+  },
+  
     // 加载默认动作列表
   async loadDefaultMotions() {
     try {

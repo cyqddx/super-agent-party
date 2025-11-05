@@ -341,6 +341,16 @@ let vue_data = {
     chromeMCPSettings: {
       enabled: false,
     },
+    sqlSettings:{
+      enabled: false,
+      engine: "sqlite",
+      user: "",
+      password: "",
+      host:"",
+      port:5432,
+      dbname: "",
+      dbpath: "",
+    },
     knowledgeBases: [],
     KBSettings: {
       when: 'before_thinking',
@@ -1061,6 +1071,7 @@ let vue_data = {
       { id: 'CLI', title: 'CLItool', icon: 'fa-solid fa-terminal'},
       { id: 'HA', title: 'homeAssistant', icon: 'fa-solid fa-house'},
       { id: 'chromeMCP', title: 'browserControl', icon: 'fa-brands fa-chrome' },
+      { id: 'sql', title: 'sqlControl', icon: 'fa-solid fa-database' },
       { id: 'comfyui', title: 'ComfyUI', icon: 'fa-solid fa-palette'},
       { id: 'mcp', title: 'mcpServers', icon: 'fa-solid fa-server'},
       { id: 'a2a', title: 'a2aServers', icon: 'fa-solid fa-plug'},
