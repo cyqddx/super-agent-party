@@ -7599,7 +7599,7 @@ if ('serviceWorker' in navigator) {
                 </div>
                 <div class="image-grid">
                   <div class="image-item" v-for="(img, index) in imageFiles" :key="index">
-                    <img :src="`${partyURL}/uploaded_files/${img.unique_filename}`" class="thumbnail"/>
+                    <img :src="`${partyURL}/uploaded_files/${img.unique_filename}`" @click="previewImage(img)" class="thumbnail"/>
                     <div class="image-overlay">
                       <!-- 复选框 -->
                       <el-checkbox
@@ -7611,10 +7611,6 @@ if ('serviceWorker' in navigator) {
                         <!-- 复制链接按钮 -->
                         <el-button circle size="small" class="image-actions-btn" @click="copyLink(img.unique_filename)">
                           <i class="fa-solid fa-link"></i>
-                        </el-button>
-                        <!-- 新增预览按钮 -->
-                        <el-button circle size="small" class="image-actions-btn" @click="previewImage(img)">
-                          <i class="fa-solid fa-eye"></i>
                         </el-button>
                         
                         <!-- 下载按钮 -->
