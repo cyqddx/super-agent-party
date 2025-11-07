@@ -1,6 +1,7 @@
 name: Docker Build and Push (Multi-Arch)
 
 on:
+  workflow_dispatch:
   push:
     tags: [ "v*.*.*" ]
 
