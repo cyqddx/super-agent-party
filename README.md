@@ -127,6 +127,9 @@ We provide two mainstream Linux installation package formats for your convenienc
 ### VRM Desktop Pet: Supports uploading custom VRM models to create a personalized desktop companion.
 ![image](doc/image/vrmbot3.jpeg)
 
+### Extension System: Supports installing extensions and creating new ones. The image below shows a galgame extension.  
+![image](doc/image/galgame.jpeg)
+
 ### Tavern Character Cards: Supports Tavern character cards with long-term memory capabilities.
 ![image](doc/image/card4.jpeg)
 

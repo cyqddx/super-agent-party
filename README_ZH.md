@@ -125,6 +125,9 @@
 ### VRM桌宠：支持上传自定义VRM模型，打造专属桌面伴侣
 ![image](doc/image/vrmbot3.jpeg)
 
+### 扩展系统：支持安装扩展，和自己创造新的扩展，下图为galgame扩展
+![image](doc/image/galgame.jpeg)
+
 ### 酒馆角色卡：支持酒馆角色卡，支持长期记忆
 ![image](doc/image/card4.jpeg)
 
