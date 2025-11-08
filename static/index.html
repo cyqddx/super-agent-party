@@ -327,6 +327,13 @@ if ('serviceWorker' in navigator) {
             <div class="extension-info">
               <h3>{{ t('defaultView') }}</h3>
               <p>{{ t('defaultViewDescription') }}</p>
+            </div>
+          </el-card>
+          
+          <!-- 分隔线 -->
+          <div class="extensions-divider" v-if="extensions.length > 0">
+            <span>
+              {{ t('availableExtensions') }}
               <el-link
                 type="primary"
                 :underline="false"
@@ -337,13 +344,6 @@ if ('serviceWorker' in navigator) {
                   <i class="fa-solid fa-puzzle-piece"></i>
                 </el-icon>{{ t('goToExtensionPage') }}
               </el-link>
-            </div>
-          </el-card>
-          
-          <!-- 分隔线 -->
-          <div class="extensions-divider" v-if="extensions.length > 0">
-            <span>
-              {{ t('availableExtensions') }}
             </span>
           </div>
           <!-- 扩展列表 -->
@@ -1043,16 +1043,6 @@ if ('serviceWorker' in navigator) {
                     <div class="extension-info">
                       <h3>{{ t('defaultView') }}</h3>
                       <p>{{ t('defaultViewDescription') }}</p>
-                      <el-link
-                        type="primary"
-                        :underline="false"
-                        href="#" 
-                        @click.stop.prevent="switchToExtensionPage();showExtensionsDialog = false" 
-                      >
-                        <el-icon class="mr-1">
-                          <i class="fa-solid fa-puzzle-piece"></i>
-                        </el-icon>{{ t('goToExtensionPage') }}
-                      </el-link>
                     </div>
                   </el-card>
                   
@@ -1060,6 +1050,16 @@ if ('serviceWorker' in navigator) {
                   <div class="extensions-divider" v-if="extensions.length > 0">
                     <span>
                       {{ t('availableExtensions') }}
+                      <el-link
+                        type="primary"
+                        :underline="false"
+                        href="#" 
+                        @click.stop.prevent="switchToExtensionPage" 
+                      >
+                        <el-icon class="mr-1">
+                          <i class="fa-solid fa-puzzle-piece"></i>
+                        </el-icon>{{ t('goToExtensionPage') }}
+                      </el-link>
                     </span>
                   </div>
                   <!-- 扩展列表 -->
@@ -3177,6 +3177,58 @@ if ('serviceWorker' in navigator) {
           </div>
         </div>
 
+        <!-- 音频上传对话框 -->
+        <el-dialog
+          v-model="showGsvRefAudioPathDialog"
+          :title="t('uploadGsvRefAudio')"
+          width="600px"
+        >
+          <div class="upload-container">
+            <div
+              class="drop-zone"
+              @dragover.prevent
+              @drop.prevent="handleGsvRefAudioDrop"
+              @click="browseGsvRefAudioFile"
+            >
+              <el-icon :size="50"><i class="fa-solid fa-upload"></i></el-icon>
+              <p>{{ t('clickOrDrop') }}</p>
+            </div>
+            
+            <!-- 文件列表 -->
+            <div class="compact-file-list" v-if="newGsvAudio.file">
+              <div class="compact-file-item">
+                <span class="file-name">@{{ newGsvAudio.name }}</span>
+                <el-button
+                  @click.stop="removeNewGsvAudio"
+                  class="delete-icon"
+                  circle
+                >
+                  <i class="fa-solid fa-trash"></i>
+                </el-button>
+              </div>
+            </div>
+          </div>
+          <el-form-item :label="t('gsvGsvAudioPath')" class="form-item-align" v-if="!newGsvAudio.file">
+            <el-input
+              v-model="newGsvAudio.path"
+              :placeholder="t('gsvGsvAudioPathPlaceholder')"
+              @input="changeGsvAudioPath"
+            ></el-input>
+          </el-form-item>
+          <el-form-item :label="t('gsvPromptText')" class="form-item-align">
+            <el-input
+              v-model="newGsvAudio.text"
+              :placeholder="t('gsvPromptTextPlaceholder')"
+            ></el-input>
+          </el-form-item>
+          <template #footer>
+            <el-button @click="cancelGsvAudioUpload">{{ t('cancel') }}</el-button>
+            <el-button type="primary" @click="uploadGsvAudio" :disabled="!newGsvAudio.name">
+              {{ t('createImmediately') }}
+            </el-button>
+          </template>
+        </el-dialog>
+
         <div v-show="activeMenu === 'model-config'" class="page agent-suite-container">
           <div class="suite-layout">
             <!-- 左侧二级导航 -->
@@ -4845,57 +4897,6 @@ if ('serviceWorker' in navigator) {
                       </el-alert>
                     </div>
                   </div>
-                  <!-- 音频上传对话框 -->
-                  <el-dialog
-                    v-model="showGsvRefAudioPathDialog"
-                    :title="t('uploadGsvRefAudio')"
-                    width="600px"
-                  >
-                    <div class="upload-container">
-                      <div
-                        class="drop-zone"
-                        @dragover.prevent
-                        @drop.prevent="handleGsvRefAudioDrop"
-                        @click="browseGsvRefAudioFile"
-                      >
-                        <el-icon :size="50"><i class="fa-solid fa-upload"></i></el-icon>
-                        <p>{{ t('clickOrDrop') }}</p>
-                      </div>
-                      
-                      <!-- 文件列表 -->
-                      <div class="compact-file-list" v-if="newGsvAudio.file">
-                        <div class="compact-file-item">
-                          <span class="file-name">@{{ newGsvAudio.name }}</span>
-                          <el-button
-                            @click.stop="removeNewGsvAudio"
-                            class="delete-icon"
-                            circle
-                          >
-                            <i class="fa-solid fa-trash"></i>
-                          </el-button>
-                        </div>
-                      </div>
-                    </div>
-                    <el-form-item :label="t('gsvGsvAudioPath')" class="form-item-align" v-if="!newGsvAudio.file">
-                      <el-input
-                        v-model="newGsvAudio.path"
-                        :placeholder="t('gsvGsvAudioPathPlaceholder')"
-                        @input="changeGsvAudioPath"
-                      ></el-input>
-                    </el-form-item>
-                    <el-form-item :label="t('gsvPromptText')" class="form-item-align">
-                      <el-input
-                        v-model="newGsvAudio.text"
-                        :placeholder="t('gsvPromptTextPlaceholder')"
-                      ></el-input>
-                    </el-form-item>
-                    <template #footer>
-                      <el-button @click="cancelGsvAudioUpload">{{ t('cancel') }}</el-button>
-                      <el-button type="primary" @click="uploadGsvAudio" :disabled="!newGsvAudio.name">
-                        {{ t('createImmediately') }}
-                      </el-button>
-                    </template>
-                  </el-dialog>
                 </el-form>
               </div>
             </div>
