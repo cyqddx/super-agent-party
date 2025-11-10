@@ -31,6 +31,9 @@ const app = Vue.createApp({
     this.disconnectWebSocket();
   },
   async mounted() {
+    await this.probeNode();
+    await this.probeUv(); 
+    await this.probeGit();
     this.checkMobile();
     this.loadSherpaStatus()
     window.addEventListener('resize', this.handleResize);
@@ -148,6 +151,9 @@ const app = Vue.createApp({
     this.scanExtensions(); // 扫描扩展
   },
   beforeUnmount() {
+    clearInterval(this.nodeTimer);
+    clearInterval(this.uvTimer); 
+    clearInterval(this.gitTimer);
     if (isElectron) {
       delete window.stopQQBotHandler;
     }

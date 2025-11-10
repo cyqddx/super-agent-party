@@ -6,7 +6,6 @@ from io import BytesIO
 import os
 from pathlib import Path
 import pickle
-import random
 import socket
 import sys
 import tempfile
@@ -6748,6 +6747,15 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"WebSocket error: {e}")
     finally:
         active_connections.remove(websocket)
+
+from py.uv_api import router as uv_router
+app.include_router(uv_router)
+
+from py.node_api import router as node_router 
+app.include_router(node_router)
+
+from py.git_api import router as git_router
+app.include_router(git_router)
 
 from py.extensions import router as extensions_router
 

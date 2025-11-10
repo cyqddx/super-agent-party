@@ -9841,5 +9841,113 @@ clearSegments() {
       showNotification(e.message, 'error')
     }
   },
-  
+  /* 探针 */
+  async probeNode() {
+    const res = await fetch('/api/node/probe');
+    const { installed } = await res.json();
+    this.nodeInstalled = installed;
+  },
+
+  /* 一键安装 */
+  async installNode() {
+    this.nodeInstalling = true;
+    this.nodeProgress = 0;
+    try {
+      // 1. 发起安装
+      const res = await fetch('/api/node/install', { method: 'POST' });
+      const { task_id } = await res.json();
+
+      // 2. 轮询进度
+      this.nodeTimer = setInterval(async () => {
+        const progRes = await fetch(`/api/node/progress/${task_id}`);
+        const { percent, status } = await progRes.json();
+        this.nodeProgress = Math.round(percent);
+
+        if (status === 'finished') {
+          clearInterval(this.nodeTimer);
+          this.nodeInstalling = false;
+          this.nodeInstalled = true;
+          this.$message.success(this.t('installSuccess'));
+        } else if (status === 'error') {
+          clearInterval(this.nodeTimer);
+          this.nodeInstalling = false;
+          this.$message.error(this.t('installFail'));
+        }
+      }, 1000);
+    } catch (e) {
+      this.nodeInstalling = false;
+      this.$message.error(this.t('installFail'));
+    }
+  },
+
+    /* ===== uv 相关 ===== */
+  async probeUv() {
+    const res = await fetch('/api/uv/probe');
+    const { installed } = await res.json();
+    this.uvInstalled = installed;
+  },
+
+  async installUv() {
+    this.uvInstalling = true;
+    this.uvProgress = 0;
+    try {
+      const res = await fetch('/api/uv/install', { method: 'POST' });
+      const { task_id } = await res.json();
+
+      this.uvTimer = setInterval(async () => {
+        const progRes = await fetch(`/api/uv/progress/${task_id}`);
+        const { percent, status } = await progRes.json();
+        this.uvProgress = Math.round(percent);
+
+        if (status === 'finished') {
+          clearInterval(this.uvTimer);
+          this.uvInstalling = false;
+          this.uvInstalled = true;
+          this.$message.success(this.t('installUvSuccess'));
+        } else if (status === 'error') {
+          clearInterval(this.uvTimer);
+          this.uvInstalling = false;
+          this.$message.error(this.t('installUvFail'));
+        }
+      }, 1000);
+    } catch (e) {
+      this.uvInstalling = false;
+      this.$message.error(this.t('installUvFail'));
+    }
+  },
+  /* ===== git ===== */
+  async probeGit() {
+    const res = await fetch('/api/git/probe');
+    const { installed } = await res.json();
+    this.gitInstalled = installed;
+  },
+
+  async installGit() {
+    this.gitInstalling = true;
+    this.gitProgress = 0;
+    try {
+      const res = await fetch('/api/git/install', { method: 'POST' });
+      const { task_id } = await res.json();
+
+      this.gitTimer = setInterval(async () => {
+        const progRes = await fetch(`/api/git/progress/${task_id}`);
+        const { percent, status } = await progRes.json();
+        this.gitProgress = Math.round(percent);
+
+        if (status === 'finished') {
+          clearInterval(this.gitTimer);
+          this.gitInstalling = false;
+          this.gitInstalled = true;
+          this.$message.success(this.t('installGitSuccess'));
+        } else if (status === 'error') {
+          clearInterval(this.gitTimer);
+          this.gitInstalling = false;
+          this.$message.error(this.t('installGitFail'));
+        }
+      }, 1000);
+    } catch (e) {
+      this.gitInstalling = false;
+      this.$message.error(this.t('installGitFail'));
+    }
+  },
 }

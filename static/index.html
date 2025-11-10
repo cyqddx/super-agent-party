@@ -4268,7 +4268,7 @@ if ('serviceWorker' in navigator) {
                       :percentage="sherpaPercent"
                       style="margin-top: 16px;"
                       :stroke-width="10"
-                    />
+                    ></el-progress>
                   </el-card>
 
 
@@ -5246,6 +5246,38 @@ if ('serviceWorker' in navigator) {
 
               <!-- 浏览器控制界面 -->
               <div v-show="subMenu === 'chromeMCP'" class="page">
+               <!-- nodejs下载 -->
+                <div class="toolbar">
+                  <div class="node-toolbar">
+                    <!-- 已安装状态 -->
+                    <div v-if="nodeInstalled" class="node-installed" style="margin-left: 16px;padding-left: 16px;">
+                      <i class="fa-solid fa-circle-check"></i>
+                      <span style="padding: 4px;">{{ t('nodeInstalled') }}</span>
+                    </div>
+
+                    <!-- 未安装状态 -->
+                    <div v-else class="node-not-installed">
+                      <span class="desc">{{ t('nodeNotInstalled') }}</span>
+                      <el-button
+                          type="primary"
+                          size="small"
+                          :loading="nodeInstalling"
+                          @click="installNode"
+                      >
+                        <i class="fa-solid fa-download"></i>{{ t('installNode') }}
+                      </el-button>
+
+                      <!-- 实时进度 -->
+                      <el-progress
+                          v-if="nodeProgress > 0"
+                          :percentage="nodeProgress"
+                          :status="nodeProgress === 100 ? 'success' : null"
+                          style="margin-top: 16px;"
+                          :stroke-width="10"
+                      ></el-progress>
+                    </div>
+                  </div>
+                </div>
                 <el-form :model="chromeMCPSettings" class="settings-form"  label-position="top">
                   <div class="tool-item">
                     <div class="tool-header">
@@ -5294,6 +5326,35 @@ if ('serviceWorker' in navigator) {
               
               <!-- SQL控制界面 -->
               <div v-show="subMenu === 'sql'" class="page">
+               <!-- uv下载 -->
+                <div class="toolbar">
+                  <div class="uv-toolbar">
+                    <div v-if="uvInstalled" class="uv-installed"  style="margin-left: 16px;padding-left: 16px;">
+                      <i class="fa-solid fa-circle-check"></i>
+                      <span style="padding: 4px;">{{ t('uvInstalled') }}</span>
+                    </div>
+
+                    <div v-else class="uv-not-installed">
+                      <span class="desc">{{ t('uvNotInstalled') }}</span>
+                      <el-button
+                          type="primary"
+                          size="small"
+                          :loading="uvInstalling"
+                          @click="installUv"
+                      >
+                        <i class="fa-solid fa-download"></i>{{ t('installUv') }}
+                      </el-button>
+
+                      <el-progress
+                          v-if="uvProgress > 0"
+                          :percentage="uvProgress"
+                          :status="uvProgress === 100 ? 'success' : null"
+                          style="margin-top: 16px;"
+                          :stroke-width="10"
+                      ></el-progress>
+                    </div>
+                  </div>
+                </div>
                 <el-form :model="sqlSettings" class="settings-form"  label-position="top">
                   <div class="tool-item">
                     <div class="tool-header">
@@ -8988,7 +9049,7 @@ if ('serviceWorker' in navigator) {
                                     :status="progressStatus"
                                     :stroke-width="20"
                                     :text-inside="true"
-                                  />
+                                  ></el-progress>
                                 </div>
                                 <!-- 文件选择区域 -->
                                 <el-form-item>
@@ -9504,6 +9565,34 @@ if ('serviceWorker' in navigator) {
               </div>
               <!-- 扩展页面 -->
               <div v-show="subMenu === 'extension'" class="page extension-container">
+                <div class="toolbar">
+                  <div class="git-toolbar">
+                    <div v-if="gitInstalled" class="git-installed"style="margin-left: 16px;padding-left: 16px;">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span style="padding: 4px;">{{ t('gitInstalled') }}</span>
+                    </div>
+
+                    <div v-else class="git-not-installed">
+                      <span class="desc">{{ t('gitNotInstalled') }}</span>
+                      <el-button
+                          type="primary"
+                          size="small"
+                          :loading="gitInstalling"
+                          @click="installGit"
+                      >
+                        <i class="fa-solid fa-download"></i>{{ t('installGit') }}
+                      </el-button>
+
+                      <el-progress
+                          v-if="gitProgress > 0"
+                          :percentage="gitProgress"
+                          :status="gitProgress === 100 ? 'success' : null"
+                          style="margin-top: 16px;"
+                          :stroke-width="10"
+                      ></el-progress>
+                    </div>
+                  </div>
+                </div>
                 <!-- 磁贴网格 -->
                 <div class="provider-grid">
                   <!-- 已有智能体 -->

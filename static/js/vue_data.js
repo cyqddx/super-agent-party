@@ -1636,4 +1636,16 @@ main();`,
     editRowIdx: null,      // 当前编辑的行号（=后端 idx）
     editRowText: "",     // 当前编辑的文本
     editRowVisible: false,
+    nodeInstalled: false,   // 探针结果
+    nodeInstalling: false,
+    nodeProgress: 0,
+    nodeTimer: null,
+    uvInstalled: false,
+    uvInstalling: false,
+    uvProgress: 0,
+    uvTimer: null,
+    gitInstalled: false,
+    gitInstalling: false,
+    gitProgress: 0,
+    gitTimer: null,
 };
