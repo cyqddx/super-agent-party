@@ -1249,6 +1249,9 @@ let vue_data = {
       bilibili_ACCESS_KEY_SECRET: '',
       bilibili_APP_ID: '',
       bilibili_ROOM_OWNER_AUTH_CODE: '',
+      youtube_enabled: false,
+      youtube_vedio_id:  "",
+      youtube_api_key:  "",
     },
     WXBotConfig: {
       WXAgent:'super-model',

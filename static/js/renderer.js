@@ -405,6 +405,10 @@ const app = Vue.createApp({
                 this.liveConfig.bilibili_ROOM_OWNER_AUTH_CODE !== '';
             }
         }
+        else if (this.liveConfig.youtube_enabled) {
+          return this.liveConfig.youtube_video_id !== '' &&
+          this.liveConfig.youtube_api_key !== '';
+        }
         return false;
     },
     updateButtonText() {

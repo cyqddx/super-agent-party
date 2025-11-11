@@ -11,7 +11,7 @@ from pydantic import BaseModel
 import py.blivedm as blivedm
 import py.blivedm.models.web as web_models
 import py.blivedm.models.open_live as open_models
-
+from py.ytdm import YouTubeDMClient
 # ==========================  关键：一次写死前缀 ==========================
 router = APIRouter(prefix="/api/live", tags=["live"])
 # ====================================================================
@@ -21,7 +21,7 @@ live_client = None
 live_thread = None
 current_loop = None
 stop_event = None  # 新增：用于通知线程停止
-
+yt_client: Optional[YouTubeDMClient] = None 
 # Pydantic模型
 class LiveConfig(BaseModel):
     bilibili_enabled: bool = False
@@ -32,6 +32,9 @@ class LiveConfig(BaseModel):
     bilibili_ACCESS_KEY_SECRET: str = ""
     bilibili_APP_ID: str = ""
     bilibili_ROOM_OWNER_AUTH_CODE: str = ""
+    youtube_enabled: bool = False
+    youtube_video_id: str = ""
+    youtube_api_key: str = ""
 
 class LiveConfigRequest(BaseModel):
     config: LiveConfig
@@ -70,37 +73,55 @@ manager = ConnectionManager()
 # API路由
 @router.post("/start", response_model=ApiResponse)
 async def start_live(request: LiveConfigRequest):
-    global live_client, live_thread, stop_event
-    
+    global live_client, live_thread, stop_event, yt_client, current_loop
+
+    config = request.config
+
+    # ① 主线程先缓存事件循环，供 YouTube 用
+    current_loop = asyncio.get_running_loop()
+    print('[Live] main loop cached ->', current_loop)
     try:
-        if live_client is not None:
-            return ApiResponse(success=False, message="直播监听已在运行")
         
-        config = request.config
-        
-        # 验证配置
-        if not config.bilibili_enabled:
-            return ApiResponse(success=False, message="请先启用B站直播监听")
-        
-        if config.bilibili_type == "web":
-            if not config.bilibili_room_id:
-                return ApiResponse(success=False, message="请输入房间ID")
-        elif config.bilibili_type == "open_live":
-            if not all([
-                config.bilibili_ACCESS_KEY_ID,
-                config.bilibili_ACCESS_KEY_SECRET,
-                config.bilibili_APP_ID,
-                config.bilibili_ROOM_OWNER_AUTH_CODE
-            ]):
-                return ApiResponse(success=False, message="请完整填写开放平台配置信息")
-        
-        # 创建停止事件
-        stop_event = threading.Event()
-        
-        # 创建新线程运行直播监听
-        live_thread = threading.Thread(target=run_live_client, args=(config.dict(),))
-        live_thread.daemon = True
-        live_thread.start()
+        if config.bilibili_enabled:
+            if live_client is not None:
+                return ApiResponse(success=False, message="直播监听已在运行")
+
+            if config.bilibili_type == "web":
+                if not config.bilibili_room_id:
+                    return ApiResponse(success=False, message="请输入房间ID")
+            elif config.bilibili_type == "open_live":
+                if not all([
+                    config.bilibili_ACCESS_KEY_ID,
+                    config.bilibili_ACCESS_KEY_SECRET,
+                    config.bilibili_APP_ID,
+                    config.bilibili_ROOM_OWNER_AUTH_CODE
+                ]):
+                    return ApiResponse(success=False, message="请完整填写开放平台配置信息")
+            
+            # 创建停止事件
+            stop_event = threading.Event()
+            
+            # 创建新线程运行直播监听
+            live_thread = threading.Thread(target=run_live_client, args=(config.dict(),))
+            live_thread.daemon = True
+            live_thread.start()
+            
+        if config.youtube_enabled:
+            if yt_client is not None:
+                return ApiResponse(success=False, message="YouTube 监听已在运行")
+            if not config.youtube_video_id or not config.youtube_api_key:
+                return ApiResponse(success=False, message="请填写 YouTube videoId 与 API_KEY")
+
+            def _yt_on_message(msg: dict):
+                # 现在 current_loop 一定有值
+                asyncio.run_coroutine_threadsafe(manager.broadcast(msg), current_loop)
+
+            yt_client = YouTubeDMClient(
+                api_key=config.youtube_api_key,
+                video_id=config.youtube_video_id,
+                on_message=_yt_on_message
+            )
+            yt_client.start()
         
         # 等待一下确保客户端启动
         await asyncio.sleep(0.5)
@@ -111,46 +132,48 @@ async def start_live(request: LiveConfigRequest):
 
 @router.post("/stop", response_model=ApiResponse)
 async def stop_live():
-    global live_client, live_thread, current_loop, stop_event
+    global live_client, live_thread, current_loop, stop_event, yt_client
     
     try:
-        if live_client is None:
-            return ApiResponse(success=True, message="直播监听未运行")
         
         print("开始停止直播监听...")
+        if live_client is not None:
+            
+            # 设置停止事件
+            if stop_event:
+                stop_event.set()
+            
+            # 如果有事件循环，在其中停止客户端
+            if current_loop and not current_loop.is_closed():
+                try:
+                    # 创建一个任务来停止客户端
+                    future = asyncio.run_coroutine_threadsafe(
+                        stop_live_client(), 
+                        current_loop
+                    )
+                    # 等待停止完成，最多等待5秒
+                    future.result(timeout=5)
+                    print("客户端停止成功")
+                except asyncio.TimeoutError:
+                    print("停止客户端超时")
+                except Exception as e:
+                    print(f"停止客户端时出错: {e}")
+            
+            # 等待线程结束
+            if live_thread and live_thread.is_alive():
+                live_thread.join(timeout=3)
+                if live_thread.is_alive():
+                    print("警告: 线程未能在超时时间内结束")
         
-        # 设置停止事件
-        if stop_event:
-            stop_event.set()
+            # 清理全局变量
+            live_client = None
+            live_thread = None
+            stop_event = None
         
-        # 如果有事件循环，在其中停止客户端
-        if current_loop and not current_loop.is_closed():
-            try:
-                # 创建一个任务来停止客户端
-                future = asyncio.run_coroutine_threadsafe(
-                    stop_live_client(), 
-                    current_loop
-                )
-                # 等待停止完成，最多等待5秒
-                future.result(timeout=5)
-                print("客户端停止成功")
-            except asyncio.TimeoutError:
-                print("停止客户端超时")
-            except Exception as e:
-                print(f"停止客户端时出错: {e}")
-        
-        # 等待线程结束
-        if live_thread and live_thread.is_alive():
-            live_thread.join(timeout=3)
-            if live_thread.is_alive():
-                print("警告: 线程未能在超时时间内结束")
-        
-        # 清理全局变量
-        live_client = None
-        live_thread = None
+        if yt_client is not None:
+            yt_client.stop()
+            yt_client = None
         current_loop = None
-        stop_event = None
-        
         print("直播监听停止完成")
         return ApiResponse(success=True, message="直播监听停止成功")
         
@@ -218,13 +241,12 @@ def init_session(sessdata: str = "") -> Optional[aiohttp.ClientSession]:
 
 def run_live_client(config: dict):
     """在新线程中运行直播客户端"""
-    global live_client, current_loop, stop_event
+    global live_client, stop_event
     
     try:
         # 创建新的事件循环
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        current_loop = loop
         
         print("开始运行直播客户端...")
         
@@ -234,23 +256,23 @@ def run_live_client(config: dict):
     except Exception as e:
         print(f"直播客户端运行错误: {e}")
         # 通知前端错误
-        if current_loop and not current_loop.is_closed():
+        if loop and not loop.is_closed():
             try:
                 asyncio.run_coroutine_threadsafe(manager.broadcast({
                     'type': 'error',
                     'message': str(e)
-                }), current_loop)
+                }), loop)
             except:
                 pass
     finally:
         print("直播客户端线程结束")
         # 清理
-        if current_loop and not current_loop.is_closed():
+        if loop and not loop.is_closed():
             try:
-                current_loop.close()
+                loop.close()
             except:
                 pass
-        current_loop = None
+        loop = None
         live_client = None
 
 async def start_live_client(config: dict):

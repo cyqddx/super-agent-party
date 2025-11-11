@@ -9463,6 +9463,59 @@ if ('serviceWorker' in navigator) {
                             </el-form-item>
                           </div>
                         </div>
+
+                        <!-- YouTube 配置 -->
+                        <div class="tool-item">
+                          <div class="tool-header">
+                            <div class="header-left">
+                              <span>
+                                YouTube
+                                <el-link
+                                  type="primary"
+                                  :underline="false"
+                                  href="https://console.cloud.google.com/apis/credentials"
+                                  target="_blank"
+                                >
+                                  <el-icon class="mr-1"><i class="fa-solid fa-key"></i></el-icon>
+                                  {{ t('getYouTubeAPIKey') }}
+                                </el-link>
+                              </span>
+                            </div>
+                            <el-switch
+                              v-model="liveConfig.youtube_enabled"
+                              @change="autoSaveSettings"
+                            />
+                          </div>
+
+                          <div class="tool-content">
+                            <el-form-item :label="t('youtubeVideoId')">
+                              <el-input
+                                v-model="liveConfig.youtube_video_id"
+                                :placeholder="t('youtubeVideoIdPlaceholder')"
+                                class="full-width-input"
+                                @change="autoSaveSettings"
+                              />
+                            </el-form-item>
+
+                            <el-form-item :label="t('youtubeApiKey')">
+                              <el-input
+                                v-model="liveConfig.youtube_api_key"
+                                :placeholder="t('youtubeApiKeyPlaceholder')"
+                                class="full-width-input"
+                                show-password
+                                @change="autoSaveSettings"
+                              />
+                            </el-form-item>
+
+                            <el-alert type="info" :closable="false" class="mb-2">
+                              <template #default>
+                                <div class="alert-content">
+                                  {{ t('youtubeHelp') }}
+                                </div>
+                              </template>
+                            </el-alert>
+                          </div>
+                        </div>
                       </div>
                     </el-form>
                   </div>

@@ -57,4 +57,5 @@ dependencies = [
     "soundfile>=0.13.1",
     "nvidia-ml-py>=13.580.82",
     "pip-licenses>=5.5.0",
+    "google-api-python-client>=2.179.0",
 ]
