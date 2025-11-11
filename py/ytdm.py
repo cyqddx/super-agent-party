@@ -81,7 +81,7 @@ class YouTubeDMClient:
             text   = item["snippet"]["displayMessage"]
             msg = {
                 "type": "message",
-                "content": f"{author}发送弹幕：{text}",
+                "content": f"{author} send: {text}",
                 "danmu_type": "danmaku",
                 "platform": "youtube"
             }
