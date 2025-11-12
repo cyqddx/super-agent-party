@@ -1222,7 +1222,7 @@ let vue_data = {
       { id: 'table_pet', title: 'tablePet', icon: "fa-solid fa-user-ninja"},
       { id: 'live_stream', title: 'live_stream_bot', icon: "fa-solid fa-video"},
       { id: 'qq_bot', title: 'qqBot', icon: 'fa-brands fa-qq' },
-      { id: 'feishu_bot', title: 'feishuBot', icon: 'fa-solid fa-bookmark' },
+      { id: 'feishu_bot', title: 'feishuBot', icon: 'fa-solid fa-paper-plane' },
       { id: 'read_bot', title: 'readBot', icon: "fa-solid fa-book-open-reader"}, 
       { id: 'translate_bot', title: 'translateBot', icon: "fa-solid fa-language"}, 
       { id: 'bot_config', title: 'bot_config', icon: 'fa-solid fa-robot' }
