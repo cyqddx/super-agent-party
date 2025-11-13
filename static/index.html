@@ -8499,6 +8499,14 @@ if ('serviceWorker' in navigator) {
                             ></el-switch>
                           </el-form-item>
 
+                          <!-- 启用TTS -->
+                          <el-form-item :label="t('enableTTS')" class="form-item-align" label-position="left">
+                            <el-switch
+                              v-model="feishuBotConfig.enableTTS"
+                              @change="autoSaveSettings"
+                            ></el-switch>
+                          </el-form-item>
+
                           <!-- APP 凭证 -->
                           <el-form-item label="APP ID" required>
                             <el-input

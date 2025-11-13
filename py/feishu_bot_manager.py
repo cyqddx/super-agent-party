@@ -33,6 +33,7 @@ class FeishuBotConfig(BaseModel):
     separators: List[str]     # 消息分段符
     reasoningVisible: bool    # 是否显示推理过程
     quickRestart: bool        # 快速重启指令开关
+    enableTTS: bool         # 是否启用TTS
 
 
 class FeishuBotManager:
@@ -105,6 +106,7 @@ class FeishuBotManager:
             self.bot_client.quickRestart = config.quickRestart
             self.bot_client.appid = config.appid
             self.bot_client.secret = config.secret
+            self.bot_client.enableTTS = config.enableTTS
             
             # 设置弱引用以避免循环引用
             self.bot_client._manager_ref = weakref.ref(self)
@@ -577,7 +579,10 @@ class FeishuClient:
                             # 清洗并发送文本
                             clean_text = self._clean_text(current_chunk)
                             if clean_text:
-                                await self._send_text(msg, clean_text)
+                                if self.enableTTS:
+                                    pass
+                                else:
+                                    await self._send_text(msg, clean_text)
                         else:
                             break
             
@@ -588,7 +593,10 @@ class FeishuClient:
             if state["text_buffer"]:
                 clean_text = self._clean_text(state["text_buffer"])
                 if clean_text:
-                    await self._send_text(msg, clean_text)
+                    if self.enableTTS:
+                        pass
+                    else:
+                        await self._send_text(msg, clean_text)
             
             # 发送图片
             for img_url in state["image_cache"]:
@@ -596,6 +604,8 @@ class FeishuClient:
             
             # 更新记忆
             full_content = "".join(full_response)
+            if self.enableTTS:
+                await self._send_voice(msg, full_content)
             self.memoryList[chat_id].append({"role": "assistant", "content": full_content})
             
             # 限制记忆长度
@@ -608,6 +618,79 @@ class FeishuClient:
         except Exception as e:
             logging.error(f"处理消息异常: {e}")
             await self._send_text(msg, f"处理消息失败: {e}")
+
+    async def _send_voice(self, original_msg, text):
+        try:
+            from py.get_setting import load_settings
+            settings = await load_settings()
+            tts_settings = settings.get("ttsSettings", {})
+            index = 0  # 默认使用第一个TTS服务器
+
+            payload = {
+                "text": text,
+                "voice": "default",
+                "ttsSettings": tts_settings,
+                "index": index
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://127.0.0.1:{self.port}/tts",
+                    json=payload
+                ) as resp:
+                    if resp.status != 200:
+                        logging.error(f"TTS 请求失败: {resp.status}")
+                        return
+
+                    audio_data = await resp.read()
+
+                    # 上传语音文件到飞书
+                    audio_file = io.BytesIO(audio_data)
+                    upload_req = CreateFileRequest.builder() \
+                        .request_body(
+                            CreateFileRequestBody.builder()
+                            .file_type("opus")
+                            .file_name("voice.ogg")
+                            .file(audio_file)
+                            .build()
+                        ).build()
+
+                    upload_resp = self.lark_client.im.v1.file.create(upload_req)
+                    if not upload_resp.success():
+                        logging.error(f"上传语音失败: {upload_resp.msg}")
+                        return
+
+                    file_key = upload_resp.data.file_key
+
+                    # 发送语音消息
+                    chat_type = original_msg.chat_type
+                    if chat_type == "p2p":
+                        req = CreateMessageRequest.builder() \
+                            .receive_id_type("chat_id") \
+                            .request_body(
+                                CreateMessageRequestBody.builder()
+                                .receive_id(original_msg.chat_id)
+                                .msg_type("audio")
+                                .content(json.dumps({"file_key": file_key}))
+                                .build()
+                            ).build()
+                        resp = self.lark_client.im.v1.message.create(req)
+                    else:
+                        req = ReplyMessageRequest.builder() \
+                            .message_id(original_msg.message_id) \
+                            .request_body(
+                                ReplyMessageRequestBody.builder()
+                                .msg_type("audio")
+                                .content(json.dumps({"file_key": file_key}))
+                                .build()
+                            ).build()
+                        resp = self.lark_client.im.v1.message.reply(req)
+
+                    if not resp.success():
+                        logging.error(f"发送语音失败: {resp.code} {resp.msg}")
+
+        except Exception as e:
+            logging.error(f"发送语音异常: {e}")
 
     # 修改 _extract_text_from_post 方法
     def _extract_text_from_post(self, post_content):

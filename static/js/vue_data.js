@@ -1186,7 +1186,8 @@ let vue_data = {
       secret: '',
       separators: ["。", "\n", "？", "！"],
       reasoningVisible: true,
-      quickRestart: true
+      quickRestart: true,
+      enableTTS: false,
     },
     isFeishuBotRunning: false,
     isFeishuStarting: false,
