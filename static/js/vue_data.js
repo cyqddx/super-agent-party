@@ -87,6 +87,7 @@ let vue_data = {
     isCollapse: true,
     isBtnCollapse: true,
     activeMenu: 'home',
+    activeLiveTab: 'live',
     isMaximized: false,
     hasUpdate: false,
     updateSuccess: false,
@@ -1088,6 +1089,7 @@ let vue_data = {
       { id: 'agents', title: 'agentSnapshot', icon: 'fa-solid fa-robot'},
       { id: 'docker', title: 'docker', icon: 'fa-brands fa-docker'},
       { id: 'browser', title: 'browserMode', icon: 'fa-solid fa-globe' },
+      { id: 'develop', title: 'development', icon: 'fa-solid fa-code' },
       { id: 'extension', title: 'extension', icon: 'fa-solid fa-puzzle-piece' },
       { id: 'fastapi', title: 'fastAPIDocs', icon: 'fa-solid fa-book' },
     ],
@@ -1177,6 +1179,20 @@ let vue_data = {
       quickRestart: true,
       is_sandbox: false,
     },
+    feishuBotConfig: {
+      FeishuAgent:'super-model',
+      memoryLimit: 30,
+      appid: '',
+      secret: '',
+      separators: ["。", "\n", "？", "！"],
+      reasoningVisible: true,
+      quickRestart: true,
+      enableTTS: false,
+    },
+    isFeishuBotRunning: false,
+    isFeishuStarting: false,
+    isFeishuStopping: false,
+    isFeishuReloading: false,
     isAudioSynthesizing: false, // 音频合成状态
     audioChunksCount: 0,        // 已生成的音频片段数
     totalChunksCount: 0,        // 总音频片段数
@@ -1207,6 +1223,7 @@ let vue_data = {
       { id: 'table_pet', title: 'tablePet', icon: "fa-solid fa-user-ninja"},
       { id: 'live_stream', title: 'live_stream_bot', icon: "fa-solid fa-video"},
       { id: 'qq_bot', title: 'qqBot', icon: 'fa-brands fa-qq' },
+      { id: 'feishu_bot', title: 'feishuBot', icon: 'fa-solid fa-paper-plane' },
       { id: 'read_bot', title: 'readBot', icon: "fa-solid fa-book-open-reader"}, 
       { id: 'translate_bot', title: 'translateBot', icon: "fa-solid fa-language"}, 
       { id: 'bot_config', title: 'bot_config', icon: 'fa-solid fa-robot' }
@@ -1248,6 +1265,12 @@ let vue_data = {
       bilibili_ACCESS_KEY_SECRET: '',
       bilibili_APP_ID: '',
       bilibili_ROOM_OWNER_AUTH_CODE: '',
+      youtube_enabled: false,
+      youtube_vedio_id:  "",
+      youtube_api_key:  "",
+      twitch_enabled: false,
+      twitch_channel: "",
+      twitch_access_token: "",
     },
     WXBotConfig: {
       WXAgent:'super-model',
@@ -1636,4 +1659,22 @@ main();`,
     editRowIdx: null,      // 当前编辑的行号（=后端 idx）
     editRowText: "",     // 当前编辑的文本
     editRowVisible: false,
+    nodeInstalled: false,   // 探针结果
+    nodeInstalling: false,
+    nodeProgress: 0,
+    nodeTimer: null,
+    uvInstalled: false,
+    uvInstalling: false,
+    uvProgress: 0,
+    uvTimer: null,
+    gitInstalled: false,
+    gitInstalling: false,
+    gitProgress: 0,
+    gitTimer: null,
+    isReadInterruption: false,
+    readSettings: {
+      delay:2000
+    },
+    isReadPaused: false, 
+    currentReadAudio: null,
 };

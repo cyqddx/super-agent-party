@@ -333,7 +333,13 @@
       "bilibili_ACCESS_KEY_ID": "",
       "bilibili_ACCESS_KEY_SECRET": "",
       "bilibili_APP_ID": "",
-      "bilibili_ROOM_OWNER_AUTH_CODE": ""
+      "bilibili_ROOM_OWNER_AUTH_CODE": "",
+      "youtube_enabled": false,
+      "youtube_vedio_id":  "",
+      "youtube_api_key":  "",
+      "twitch_enabled": false,
+      "twitch_channel": "",
+      "twitch_access_token": ""
     },
     "WXBotConfig": {
       "WXAgent":"super-model",
@@ -343,6 +349,16 @@
       "quickRestart": true,
       "nickNameList": [],
       "wakeWord": "小派"
+    },
+    "feishuBotConfig": {
+      "FeishuAgent":"super-model",
+      "memoryLimit": 30,
+      "appid": "",
+      "secret": "",
+      "separators": ["。", "\n", "？", "！"],
+      "reasoningVisible": true,
+      "quickRestart": true,
+      "enableTTS":false
     },
     "VRMConfig": {
       "name": "default",

@@ -46,3 +46,7 @@ sherpa_onnx
 soundfile
 nvidia-ml-py
 pip-licenses 
+lark_oapi
+pydub
+imageio_ffmpeg
+discord.py

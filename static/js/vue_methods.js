@@ -1076,6 +1076,7 @@ let vue_methods = {
           this.agents = data.data.agents || this.agents;
           this.mainAgent = data.data.mainAgent || this.mainAgent;
           this.qqBotConfig = data.data.qqBotConfig || this.qqBotConfig;
+          this.feishuBotConfig = data.data.feishuBotConfig || this.feishuBotConfig;
           this.targetLangSelected = data.data.targetLangSelected || this.targetLangSelected;
           this.allBriefly = data.data.allBriefly || this.allBriefly;
           this.BotConfig = data.data.BotConfig || this.BotConfig;
@@ -1294,6 +1295,14 @@ let vue_methods = {
     // 发送消息
     async sendMessage(role = 'user') { 
       if (!this.userInput.trim() || this.isTyping) return;
+      if (this.readState.isPlaying && this.ttsSettings.enabled) { 
+        if (this.isReadRunning){
+          this.pauseRead();
+        }else{
+          this.stopSegmentTTS(isEnd=false);
+        }
+        this.isReadInterruption = true;
+      }
       this.isTyping = true;
       // 开始计时
       this.startTimer();
@@ -1909,6 +1918,7 @@ let vue_methods = {
           agents: this.agents,
           mainAgent: this.mainAgent,
           qqBotConfig : this.qqBotConfig,
+          feishuBotConfig: this.feishuBotConfig,
           targetLangSelected: this.targetLangSelected,
           allBriefly: this.allBriefly,
           BotConfig: this.BotConfig,
@@ -3906,134 +3916,221 @@ let vue_methods = {
       }
     },
 
-    // 启动微信机器人
-    async startWXBot() {
-      this.isWXStarting = true;
-
+ async requestFeishuBotStopIfRunning(){
       try {
-        // 显示连接中的提示
-        showNotification('正在连接微信机器人...', 'info');
-
-        const response = await fetch(`/start_wx_bot`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.WXBotConfig)
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          this.isWXBotRunning = true;
-          showNotification('微信机器人已成功启动并就绪', 'success');
-        } else {
-          // 显示具体错误信息
-          const errorMessage = result.message || '启动失败，请检查配置';
-          showNotification(`启动失败: ${errorMessage}`, 'error');
-
-          // 如果是超时错误，给出更具体的提示
-          if (errorMessage.includes('超时')) {
-            showNotification('提示：请检查网络连接和机器人配置是否正确', 'warning');
-          }
-        }
-      } catch (error) {
-        console.error('启动微信机器人时出错:', error);
-        showNotification('启动微信机器人失败: 网络错误或服务器未响应', 'error');
-      } finally {
-        this.isWXStarting = false;
-      }
-    },
-
-    // 停止微信机器人
-    async stopWXBot() {
-      this.isWXStopping = true;
-
-      try {
-        const response = await fetch(`/stop_wx_bot`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          this.isWXBotRunning = false;
-          showNotification('微信机器人已成功停止', 'success');
-        } else {
-          const errorMessage = result.message || '停止失败';
-          showNotification(`停止失败: ${errorMessage}`, 'error');
-        }
-      } catch (error) {
-        console.error('停止微信机器人时出错:', error);
-        showNotification('停止微信机器人失败: 网络错误或服务器未响应', 'error');
-      } finally {
-        this.isWXStopping = false;
-      }
-    },
-
-    // 重载微信机器人配置
-    async reloadWXBotConfig() {
-      this.isWXReloading = true;
-
-      try {
-        const response = await fetch(`/reload_wx_bot`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.WXBotConfig)
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          if (result.config_changed) {
-            showNotification('微信机器人配置已重载并重新启动', 'success');
-          } else {
-            showNotification('微信机器人配置已更新', 'success');
-          }
-        } else {
-          const errorMessage = result.message || '重载失败';
-          showNotification(`重载失败: ${errorMessage}`, 'error');
-        }
-      } catch (error) {
-        console.error('重载微信机器人配置时出错:', error);
-        showNotification('重载微信机器人配置失败: 网络错误或服务器未响应', 'error');
-      } finally {
-        this.isWXReloading = false;
-      }
-    },
-
-    // 检查微信机器人状态
-    async checkWXBotStatus() {
-      try {
-        const response = await fetch(`/wx_bot_status`);
-        const status = await response.json();
-
-        // 更新机器人运行状态
-        this.isWXBotRunning = status.is_running;
-
-        // 如果机器人正在运行但前端状态不一致，更新状态
-        if (status.is_running && !this.isWXBotRunning) {
-          this.isWXBotRunning = true;
-        }
-      } catch (error) {
-        console.error('检查机器人状态失败:', error);
-      }
-    },
-
-    // 新增的方法：供主进程请求关闭机器人
-    async requestStopWXBotIfRunning() {
-      try {
-        const response = await fetch(`/wx_bot_status`)
+        const response = await fetch(`/feishu_bot_status`)
         const status = await response.json()
 
         if (status.is_running) {
-          // 调用 stopWXBot 来关闭机器人
-          await this.stopWXBot()
+          // 调用 stopQQBot 来关闭机器人
+          await this.stopFeishuBot()
           console.log('机器人已关闭')
         }
       } catch (error) {
         console.error('检查或停止机器人失败:', error)
       }
-    },
+ },
+
+async startFeishuBot() {
+  this.isFeishuStarting = true;
+  try {
+    showNotification('正在连接飞书机器人...', 'info');
+    const res = await fetch('/start_feishu_bot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(this.feishuBotConfig),
+    });
+    const json = await res.json();
+    if (json.success) {
+      this.isFeishuBotRunning = true;
+      showNotification('飞书机器人启动成功', 'success');
+    } else {
+      showNotification(`启动失败：${json.message}`, 'error');
+    }
+  } catch (e) {
+    showNotification('网络错误或服务器未响应', 'error');
+  } finally {
+    this.isFeishuStarting = false;
+  }
+},
+async stopFeishuBot() {
+  this.isFeishuStopping = true;
+  try {
+    const res = await fetch('/stop_feishu_bot', { method: 'POST' });
+    const json = await res.json();
+    if (json.success) {
+      this.isFeishuBotRunning = false;
+      showNotification('飞书机器人已停止', 'success');
+    } else {
+      showNotification(`停止失败：${json.message}`, 'error');
+    }
+  } catch (e) {
+    showNotification('网络错误或服务器未响应', 'error');
+  } finally {
+    this.isFeishuStopping = false;
+  }
+},
+async reloadfeishuBotConfig() {
+  this.isFeishuReloading = true;
+  try {
+    const res = await fetch('/reload_feishu_bot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(this.feishuBotConfig),
+    });
+    const json = await res.json();
+    if (json.success) {
+      showNotification('飞书机器人已重载', 'success');
+    } else {
+      showNotification(`重载失败：${json.message}`, 'error');
+    }
+  } catch (e) {
+    showNotification('网络错误或服务器未响应', 'error');
+  } finally {
+    this.isFeishuReloading = false;
+  }
+},
+async checkFeishuBotStatus() {
+  try {
+    const res = await fetch('/feishu_bot_status');
+    const st = await res.json();
+    this.isFeishuBotRunning = st.is_running;
+  } catch (e) {
+    console.error('检查飞书机器人状态失败', e);
+  }
+},
+handleCreateFeishuSeparator(val) {
+  this.feishuBotConfig.separators.push(val);
+},
+
+    // // 启动微信机器人
+    // async startWXBot() {
+    //   this.isWXStarting = true;
+
+    //   try {
+    //     // 显示连接中的提示
+    //     showNotification('正在连接微信机器人...', 'info');
+
+    //     const response = await fetch(`/start_wx_bot`, {
+    //       method: 'POST',
+    //       headers: { 'Content-Type': 'application/json' },
+    //       body: JSON.stringify(this.WXBotConfig)
+    //     });
+
+    //     const result = await response.json();
+
+    //     if (result.success) {
+    //       this.isWXBotRunning = true;
+    //       showNotification('微信机器人已成功启动并就绪', 'success');
+    //     } else {
+    //       // 显示具体错误信息
+    //       const errorMessage = result.message || '启动失败，请检查配置';
+    //       showNotification(`启动失败: ${errorMessage}`, 'error');
+
+    //       // 如果是超时错误，给出更具体的提示
+    //       if (errorMessage.includes('超时')) {
+    //         showNotification('提示：请检查网络连接和机器人配置是否正确', 'warning');
+    //       }
+    //     }
+    //   } catch (error) {
+    //     console.error('启动微信机器人时出错:', error);
+    //     showNotification('启动微信机器人失败: 网络错误或服务器未响应', 'error');
+    //   } finally {
+    //     this.isWXStarting = false;
+    //   }
+    // },
+
+    // // 停止微信机器人
+    // async stopWXBot() {
+    //   this.isWXStopping = true;
+
+    //   try {
+    //     const response = await fetch(`/stop_wx_bot`, {
+    //       method: 'POST',
+    //       headers: { 'Content-Type': 'application/json' }
+    //     });
+
+    //     const result = await response.json();
+
+    //     if (result.success) {
+    //       this.isWXBotRunning = false;
+    //       showNotification('微信机器人已成功停止', 'success');
+    //     } else {
+    //       const errorMessage = result.message || '停止失败';
+    //       showNotification(`停止失败: ${errorMessage}`, 'error');
+    //     }
+    //   } catch (error) {
+    //     console.error('停止微信机器人时出错:', error);
+    //     showNotification('停止微信机器人失败: 网络错误或服务器未响应', 'error');
+    //   } finally {
+    //     this.isWXStopping = false;
+    //   }
+    // },
+
+    // // 重载微信机器人配置
+    // async reloadWXBotConfig() {
+    //   this.isWXReloading = true;
+
+    //   try {
+    //     const response = await fetch(`/reload_wx_bot`, {
+    //       method: 'POST',
+    //       headers: { 'Content-Type': 'application/json' },
+    //       body: JSON.stringify(this.WXBotConfig)
+    //     });
+
+    //     const result = await response.json();
+
+    //     if (result.success) {
+    //       if (result.config_changed) {
+    //         showNotification('微信机器人配置已重载并重新启动', 'success');
+    //       } else {
+    //         showNotification('微信机器人配置已更新', 'success');
+    //       }
+    //     } else {
+    //       const errorMessage = result.message || '重载失败';
+    //       showNotification(`重载失败: ${errorMessage}`, 'error');
+    //     }
+    //   } catch (error) {
+    //     console.error('重载微信机器人配置时出错:', error);
+    //     showNotification('重载微信机器人配置失败: 网络错误或服务器未响应', 'error');
+    //   } finally {
+    //     this.isWXReloading = false;
+    //   }
+    // },
+
+    // // 检查微信机器人状态
+    // async checkWXBotStatus() {
+    //   try {
+    //     const response = await fetch(`/wx_bot_status`);
+    //     const status = await response.json();
+
+    //     // 更新机器人运行状态
+    //     this.isWXBotRunning = status.is_running;
+
+    //     // 如果机器人正在运行但前端状态不一致，更新状态
+    //     if (status.is_running && !this.isWXBotRunning) {
+    //       this.isWXBotRunning = true;
+    //     }
+    //   } catch (error) {
+    //     console.error('检查机器人状态失败:', error);
+    //   }
+    // },
+
+    // // 新增的方法：供主进程请求关闭机器人
+    // async requestStopWXBotIfRunning() {
+    //   try {
+    //     const response = await fetch(`/wx_bot_status`)
+    //     const status = await response.json()
+
+    //     if (status.is_running) {
+    //       // 调用 stopWXBot 来关闭机器人
+    //       await this.stopWXBot()
+    //       console.log('机器人已关闭')
+    //     }
+    //   } catch (error) {
+    //     console.error('检查或停止机器人失败:', error)
+    //   }
+    // },
 
     async handleSeparatorChange(val) {
       this.qqBotConfig.separators = val.map(s => 
@@ -5817,6 +5914,15 @@ let vue_methods = {
         lastMessage.currentChunk = 0;
         this.TTSrunning = false;
         this.cur_audioDatas = [];
+        if(this.isReadInterruption){
+          setTimeout(() => {
+            if (this.isReadPaused){
+              this.resumeRead();
+            }else{
+              this.toggleContinuousPlay();
+            }
+          }, this.readSettings.delay);
+        }
         // 通知VRM所有音频播放完成
         this.sendTTSStatusToVRM('allChunksCompleted', {});
         return;
@@ -7338,86 +7444,120 @@ async deleteGaussSceneOption(sceneId) {
     }
   },
     /* ===============  朗读主流程  =============== */
-    // 修改 startRead 方法
-    async startRead() {
-      if (!this.readConfig.longText.trim()) return;
-      this.stopSegmentTTS();
-      this.readState.currentChunk = 0;
-      this.isReadStarting = true;
-      this.isReadRunning  = true;
-      this.isReadStopping = false;
+toggleRead() {
+  if (this.isReadRunning) {
+    if (this.isReadPaused) {
+      this.resumeRead();
+    } else {
+      this.pauseRead();
+    }
+  } else {
+    this.startRead();
+  }
+},
 
-      /* 1. 清空上一次的残留 */
-      this.readState.ttsChunks  = [];
-      this.readState.audioChunks = [];
-      this.readState.currentChunk = 0;
-      this.readState.isPlaying = false;
-      this.readState.chunks_voice = [];
-      this.cur_voice = 'default';
-      
-      /* 新增: 重置音频计数状态 */
-      this.audioChunksCount = 0; // 重置计数
-      this.totalChunksCount = 0; // 先设置为0
+// 修改后的startRead方法
+async startRead() {
+  if (!this.readConfig.longText.trim()) return;
+  
+  this.stopSegmentTTS();
+  this.readState.currentChunk = 0;
+  this.isReadStarting = true;
+  this.isReadRunning  = true;
+  this.isReadPaused   = false;  // 重置暂停状态
+  this.isReadStopping = false;
 
-      /* 2. 分段 */
-      const {
-        chunks,
-        chunks_voice,
-        remaining,
-        remaining_voice
-      } = this.splitTTSBuffer(this.readConfig.longText);
+  /* 清空上一次的残留 */
+  this.readState.ttsChunks  = [];
+  this.readState.audioChunks = [];
+  this.readState.currentChunk = 0;
+  this.readState.isPlaying = false;
+  this.readState.chunks_voice = [];
+  this.cur_voice = 'default';
+  
+  /* 重置音频计数状态 */
+  this.audioChunksCount = 0;
+  this.totalChunksCount = 0;
 
-      // 追加 remaining
-      if (remaining) {
-        chunks.push(remaining);
-        chunks_voice.push(remaining_voice);
-      }
+  /* 分段处理逻辑（保持原有） */
+  const {
+    chunks,
+    chunks_voice,
+    remaining,
+    remaining_voice
+  } = this.splitTTSBuffer(this.readConfig.longText);
 
-      /* ================= 新增：去标签 + 去空白并同步删除 ================= */
-      // 1. 去 HTML 标签
-      const cleanedChunks = chunks.map(txt => txt.replace(/<\/?[^>]+>/g, '').trim());
+  if (remaining) {
+    chunks.push(remaining);
+    chunks_voice.push(remaining_voice);
+  }
 
-      // 2. 过滤空白并同步删除 chunks_voice 对应项
-      const finalChunks       = [];
-      const finalChunksVoice  = [];
+  /* 去标签 + 去空白并同步删除 */
+  const cleanedChunks = chunks.map(txt => txt.replace(/<\/?[^>]+>/g, '').trim());
+  const finalChunks = [];
+  const finalChunksVoice = [];
 
-      cleanedChunks.forEach((txt, idx) => {
-        if (txt) {                      // 非空才保留
-          finalChunks.push(txt);
-          finalChunksVoice.push(chunks_voice[idx]);
-        }
-      });
+  cleanedChunks.forEach((txt, idx) => {
+    if (txt) {
+      finalChunks.push(txt);
+      finalChunksVoice.push(chunks_voice[idx]);
+    }
+  });
 
-      // 3. 覆盖原来的数组
-      chunks.length       = 0;
-      chunks_voice.length = 0;
-      chunks.push(...finalChunks);
-      chunks_voice.push(...finalChunksVoice);
-      /* ================================================================ */
+  if (!finalChunks.length) {
+    this.isReadRunning  = false;
+    this.isReadStarting = false;
+    return;
+  }
 
-      if (!chunks.length) {
-        this.isReadRunning  = false;
-        this.isReadStarting = false;
-        return;
-      }
+  this.readState.ttsChunks   = finalChunks;
+  this.readState.chunks_voice = finalChunksVoice;
+  this.totalChunksCount = finalChunks.length;
 
-      this.readState.ttsChunks   = chunks;
-      this.readState.chunks_voice = chunks_voice;
-      
-      /* 新增: 设置总片段数 */
-      this.totalChunksCount = chunks.length; // 设置总片段数
+  /* 通知 VRM 开始朗读 */
+  this.sendTTSStatusToVRM('ttsStarted', {
+    totalChunks: this.readState.ttsChunks.length
+  });
 
-      /* 3. 通知 VRM 开始朗读 */
-      this.sendTTSStatusToVRM('ttsStarted', {
-        totalChunks: this.readState.ttsChunks.length
-      });
+  this.isReadStarting = false;
 
-      this.isReadStarting = false;
+  /* 并发 TTS */
+  this.isAudioSynthesizing = true;
+  await this.startReadTTSProcess();
+},
 
-      /* 4. 并发 TTS */
-      this.isAudioSynthesizing = true; // 开始合成
-      await this.startReadTTSProcess();
-    },
+// 新增：暂停朗读
+pauseRead() {
+  if (!this.isReadRunning || this.isReadPaused) return;
+  
+  this.isReadPaused = true;
+  
+  // 暂停当前音频
+  if (this.currentReadAudio) {
+    this.currentReadAudio.pause();
+  }
+  
+  // 通知 VRM 暂停
+  this.sendTTSStatusToVRM('pauseSpeaking', {});
+},
+
+// 新增：恢复朗读
+resumeRead() {
+  if (!this.isReadRunning || !this.isReadPaused) return;
+  
+  this.isReadPaused = false;
+  
+  // 恢复当前音频播放
+  if (this.currentReadAudio) {
+    this.currentReadAudio.play().catch(console.error);
+  }
+  
+  // 通知 VRM 恢复
+  this.sendTTSStatusToVRM('resumeSpeaking', {});
+  
+  // 尝试继续播放后续音频
+  this.checkReadAudioPlayback();
+},
 
     // 修改 processReadTTSChunk 方法
     async processReadTTSChunk(index) {
@@ -7624,63 +7764,62 @@ async deleteGaussSceneOption(sceneId) {
       }
     },
 
-    // 在 stopRead 中重置状态
-    stopRead() {
-      if (!this.isReadRunning) return;
-      this.isReadStopping = true;
-      this.isReadRunning  = false;
+// 修改 stopRead 方法
+stopRead() {
+  if (!this.isReadRunning) return;
+  
+  this.isReadStopping = true;
+  this.isReadRunning  = false;
+  this.isReadPaused   = false;  // 重置暂停状态
+  this.readState.isPlaying = false;
 
-      /* 停掉当前音频 */
-      if (this.currentAudio) {
-        this.currentAudio.pause();
-        this.currentAudio = null;
-      }
-      this.sendTTSStatusToVRM('stopSpeaking', {});
-      
-      /* 新增: 重置音频计数状态 */
-      this.isAudioSynthesizing = false;
-      this.audioChunksCount = 0;
-      this.totalChunksCount = 0;
-      
-      this.isReadStopping = false;
-    },
+  /* 停掉当前音频 */
+  if (this.currentReadAudio) {
+    this.currentReadAudio.pause();
+    this.currentReadAudio = null;
+  }
+  
+  this.sendTTSStatusToVRM('stopSpeaking', {});
+  
+  /* 重置音频计数状态 */
+  this.isAudioSynthesizing = false;
+  this.audioChunksCount = 0;
+  this.totalChunksCount = 0;
+  
+  this.isReadStopping = false;
+},
 
-    stopTTSActivities() {
-      // 停止朗读流程
-      if (this.isReadRunning) {
-        this.isReadStopping = true;
-        this.isReadRunning = false;
-        this.readState.isPlaying = false;
-        /* 停掉当前音频 */
-        if (this.currentAudio) {
-          this.currentAudio.pause();
-          this.currentAudio = null;
-        }
-        this.sendTTSStatusToVRM('stopSpeaking', {});
-        
-        /* 重置音频计数状态 - 只重置运行状态，保留计数 */
-        this.isAudioSynthesizing = false;
-        // 不要重置计数，这样用户可以下载已生成的部分
-        // this.audioChunksCount = 0;
-        // this.totalChunksCount = 0;
-        
-        this.isReadStopping = false;
-      }
-      
-      // 停止音频转换流程
-      if (this.isConvertingAudio) {
-        this.isConvertStopping = true;
-        this.isConvertingAudio = false;
-        
-        /* 重置转换状态 - 只重置运行状态，保留计数 */
-        this.isAudioSynthesizing = false;
-        
-        /* 新增：显示停止通知 */
-        showNotification(this.t('audioConversionStopped'));
-        
-        this.isConvertStopping = false;
-      }
-    },
+// 修改 stopTTSActivities 方法
+stopTTSActivities() {
+  // 停止朗读流程
+  if (this.isReadRunning) {
+    this.isReadStopping = true;
+    this.isReadRunning = false;
+    this.isReadPaused = false;  // 重置暂停状态
+    this.readState.isPlaying = false;
+    
+    /* 停掉当前音频 */
+    if (this.currentReadAudio) {
+      this.currentReadAudio.pause();
+      this.currentReadAudio = null;
+    }
+    this.sendTTSStatusToVRM('stopSpeaking', {});
+    
+    /* 重置音频计数状态 */
+    this.isAudioSynthesizing = false;
+    
+    this.isReadStopping = false;
+  }
+  
+  // 停止音频转换流程（保持原有）
+  if (this.isConvertingAudio) {
+    this.isConvertStopping = true;
+    this.isConvertingAudio = false;
+    this.isAudioSynthesizing = false;
+    showNotification(this.t('audioConversionStopped'));
+    this.isConvertStopping = false;
+  }
+},
   /* ===============  复用 / 微调 TTS 流程  =============== */
   async startReadTTSProcess() {
     let max_concurrency = this.ttsSettings.maxConcurrency || 1;
@@ -7908,6 +8047,7 @@ async deleteGaussSceneOption(sceneId) {
   },
 
   async checkReadAudioPlayback() {
+    if (this.isReadPaused) return;
     if (!this.isReadRunning || this.readState.isPlaying) return;
 
     const curIdx = this.readState.currentChunk;
@@ -7930,7 +8070,7 @@ async deleteGaussSceneOption(sceneId) {
     console.log(`Playing read audio chunk ${curIdx}`);
     this.scrollToCurrentChunk(curIdx);
     try {
-      this.currentAudio = new Audio(audioChunk.url);
+      this.currentReadAudio = new Audio(audioChunk.url);
 
       this.sendTTSStatusToVRM('startSpeaking', {
         audioDataUrl: this.cur_audioDatas[curIdx],
@@ -7942,12 +8082,12 @@ async deleteGaussSceneOption(sceneId) {
       });
 
       await new Promise(resolve => {
-        this.currentAudio.onended = () => {
+        this.currentReadAudio.onended = () => {
           this.sendTTSStatusToVRM('chunkEnded', { chunkIndex: curIdx });
           resolve();
         };
-        this.currentAudio.onerror = resolve;
-        this.currentAudio.play().catch(console.error);
+        this.currentReadAudio.onerror = resolve;
+        this.currentReadAudio.play().catch(console.error);
       });
     } catch (e) {
       console.error('Read playback error', e);
@@ -9841,5 +9981,113 @@ clearSegments() {
       showNotification(e.message, 'error')
     }
   },
-  
+  /* 探针 */
+  async probeNode() {
+    const res = await fetch('/api/node/probe');
+    const { installed } = await res.json();
+    this.nodeInstalled = installed;
+  },
+
+  /* 一键安装 */
+  async installNode() {
+    this.nodeInstalling = true;
+    this.nodeProgress = 0;
+    try {
+      // 1. 发起安装
+      const res = await fetch('/api/node/install', { method: 'POST' });
+      const { task_id } = await res.json();
+
+      // 2. 轮询进度
+      this.nodeTimer = setInterval(async () => {
+        const progRes = await fetch(`/api/node/progress/${task_id}`);
+        const { percent, status } = await progRes.json();
+        this.nodeProgress = Math.round(percent);
+
+        if (status === 'finished') {
+          clearInterval(this.nodeTimer);
+          this.nodeInstalling = false;
+          this.nodeInstalled = true;
+          this.$message.success(this.t('installSuccess'));
+        } else if (status === 'error') {
+          clearInterval(this.nodeTimer);
+          this.nodeInstalling = false;
+          this.$message.error(this.t('installFail'));
+        }
+      }, 1000);
+    } catch (e) {
+      this.nodeInstalling = false;
+      this.$message.error(this.t('installFail'));
+    }
+  },
+
+    /* ===== uv 相关 ===== */
+  async probeUv() {
+    const res = await fetch('/api/uv/probe');
+    const { installed } = await res.json();
+    this.uvInstalled = installed;
+  },
+
+  async installUv() {
+    this.uvInstalling = true;
+    this.uvProgress = 0;
+    try {
+      const res = await fetch('/api/uv/install', { method: 'POST' });
+      const { task_id } = await res.json();
+
+      this.uvTimer = setInterval(async () => {
+        const progRes = await fetch(`/api/uv/progress/${task_id}`);
+        const { percent, status } = await progRes.json();
+        this.uvProgress = Math.round(percent);
+
+        if (status === 'finished') {
+          clearInterval(this.uvTimer);
+          this.uvInstalling = false;
+          this.uvInstalled = true;
+          this.$message.success(this.t('installUvSuccess'));
+        } else if (status === 'error') {
+          clearInterval(this.uvTimer);
+          this.uvInstalling = false;
+          this.$message.error(this.t('installUvFail'));
+        }
+      }, 1000);
+    } catch (e) {
+      this.uvInstalling = false;
+      this.$message.error(this.t('installUvFail'));
+    }
+  },
+  /* ===== git ===== */
+  async probeGit() {
+    const res = await fetch('/api/git/probe');
+    const { installed } = await res.json();
+    this.gitInstalled = installed;
+  },
+
+  async installGit() {
+    this.gitInstalling = true;
+    this.gitProgress = 0;
+    try {
+      const res = await fetch('/api/git/install', { method: 'POST' });
+      const { task_id } = await res.json();
+
+      this.gitTimer = setInterval(async () => {
+        const progRes = await fetch(`/api/git/progress/${task_id}`);
+        const { percent, status } = await progRes.json();
+        this.gitProgress = Math.round(percent);
+
+        if (status === 'finished') {
+          clearInterval(this.gitTimer);
+          this.gitInstalling = false;
+          this.gitInstalled = true;
+          this.$message.success(this.t('installGitSuccess'));
+        } else if (status === 'error') {
+          clearInterval(this.gitTimer);
+          this.gitInstalling = false;
+          this.$message.error(this.t('installGitFail'));
+        }
+      }, 1000);
+    } catch (e) {
+      this.gitInstalling = false;
+      this.$message.error(this.t('installGitFail'));
+    }
+  },
 }

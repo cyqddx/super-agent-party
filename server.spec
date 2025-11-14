@@ -1,6 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 import platform
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files  
+from imageio_ffmpeg import get_ffmpeg_exe                                
+
+
+_ = get_ffmpeg_exe()
+# ---------- 1. 收集 imageio-ffmpeg 的 binaries & datas ----------
+ffmpeg_bin = [(get_ffmpeg_exe(), '.')]                                  
+ffmpeg_data = collect_data_files('imageio_ffmpeg')     
 
 # 全平台禁用签名配置
 universal_disable_sign = {
@@ -13,19 +20,21 @@ universal_disable_sign = {
 a = Analysis(
     ['server.py'],
     pathex=[],
-    binaries=[],
+    binaries=ffmpeg_bin, 
     datas=[
         ('config/settings_template.json', 'config'),
         ('config/locales.json', 'config'),
         ('static', 'static'),
         ('vrm', 'vrm'),
-        ('tiktoken_cache', 'tiktoken_cache')
+        ('tiktoken_cache', 'tiktoken_cache'),
+        *ffmpeg_data, 
     ],
     hiddenimports=[
         'pydantic.deprecated.decorator',
         'tiktoken_ext',
         'tiktoken_ext.openai_public',
         'botpy',
+        'imageio_ffmpeg', 
         *collect_submodules('mem0'),
     ],
     hookspath=[],

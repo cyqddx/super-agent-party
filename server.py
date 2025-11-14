@@ -3,10 +3,10 @@ import base64
 from datetime import datetime, timedelta, timezone
 import glob
 from io import BytesIO
+import io
 import os
 from pathlib import Path
 import pickle
-import random
 import socket
 import sys
 import tempfile
@@ -51,7 +51,7 @@ from concurrent.futures import ThreadPoolExecutor
 import aiofiles
 import argparse
 from mem0 import Memory
-from py.qq_bot_manager import QQBotManager
+from py.qq_bot_manager import QQBotConfig, QQBotManager
 from py.dify_openai_async import DifyOpenAIAsync
 
 from py.get_setting import EXT_DIR, load_covs, load_settings, save_covs,save_settings,base_path,configure_host_port,UPLOAD_FILES_DIR,AGENT_DIR,MEMORY_CACHE_DIR,KB_DIR,DEFAULT_VRM_DIR,USER_DATA_DIR,LOG_DIR,TOOL_TEMP_DIR
@@ -786,7 +786,7 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
         if newttsList:
             newttsList = json.dumps(newttsList,ensure_ascii=False)
             print(f"可用音色：{newttsList}")
-            newtts_messages = f"你可以使用以下音色：\n{newttsList}\n，当你生成回答时，将不同的旁白或角色的文字用<音色名></音色名>括起来，以表示这些话是使用这个音色，以控制不同TTS转换成对应音色。对于没有对应音色的部分，可以不括。即使音色名称不为英文，还是可以照样使用<音色名>使用该音色的文本</音色名>来启用对应音色。注意！如果是你扮演的角色的名字在音色列表里，你必须用这个音色标签将你扮演的角色说话的部分括起来！只要是非人物说话的部分，都视为旁白！角色音色应该标记在人物说话的前后！例如：<Narrator>现在是下午三点，她说道：</Narrator><角色名>”天气真好哇！“</角色名><Narrator>说完她伸了个懒腰。</Narrator>\n\n"
+            newtts_messages = f"你可以使用以下音色：\n{newttsList}\n以及特殊无声音色<silence>，被<silence>括起来的部分会不会进入语音合成，当你生成回答时，你需要以XML格式组织回答，将不同的旁白或角色的文字用<音色名></音色名>括起来，以表示这些话是使用这个音色，以控制不同TTS转换成对应音色。对于没有对应音色的部分，可以不括。即使音色名称不为英文，还是可以照样使用<音色名>使用该音色的文本</音色名>来启用对应音色。注意！如果是你扮演的角色的名字在音色列表里，你必须用这个音色标签将你扮演的角色说话的部分括起来！只要是非人物说话的部分，都视为旁白！角色音色应该标记在人物说话的前后！例如：<Narrator>现在是下午三点，她说道：</Narrator><角色名>”天气真好哇！“</角色名><silence>(眼睛笑成了一条线)</silence><Narrator>说完她伸了个懒腰。</Narrator>\n\n"
             content_prepend(request.messages, 'system', newtts_messages)
     if settings['vision']['desktopVision']:
         desktop_message = "\n\n用户与你对话时，会自动发给你当前的桌面截图。\n\n"
@@ -1239,9 +1239,14 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                 content_append(request.messages, 'system', "之前的相关记忆：\n\n" + relevant_memories + "\n\n相关结束\n\n")                    
         request = await tools_change_messages(request, settings)
         chat_vendor = 'OpenAI'
+        reasoner_vendor = 'OpenAI'
         for modelProvider in settings['modelProviders']: 
             if modelProvider['id'] == settings['selectedProvider']:
                 chat_vendor = modelProvider['vendor']
+                break
+        for modelProvider in settings['modelProviders']: 
+            if modelProvider['id'] == settings['reasoner']['selectedProvider']:
+                reasoner_vendor = modelProvider['vendor']
                 break
         if chat_vendor == 'Dify':
             try:
@@ -1272,6 +1277,14 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
             try:
                 extra = {}
                 reasoner_extra = {}
+                if chat_vendor == 'OpenAI':
+                    extra['max_completion_tokens'] = request.max_tokens or settings['max_tokens']
+                else:
+                    extra['max_tokens'] = request.max_tokens or settings['max_tokens']
+                if reasoner_vendor == 'OpenAI':
+                    reasoner_extra['max_completion_tokens'] = settings['reasoner']['max_tokens']
+                else:
+                    reasoner_extra['max_tokens'] = settings['reasoner']['max_tokens']
                 if request.reasoning_effort or settings['reasoning_effort']:
                     extra['reasoning_effort'] = request.reasoning_effort or settings['reasoning_effort']
                 if settings['reasoner']['reasoning_effort'] is not None:
@@ -1638,7 +1651,6 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                             model=settings['reasoner']['model'],
                             messages=msg,
                             stream=True,
-                            max_tokens=settings['reasoner']['max_tokens'], # 根据实际情况调整
                             stop=settings['reasoner']['stop_words'],
                             temperature=settings['reasoner']['temperature'],
                             **reasoner_extra
@@ -1684,7 +1696,6 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                         temperature=request.temperature,
                         tools=tools,
                         stream=True,
-                        max_tokens=request.max_tokens or settings['max_tokens'],
                         top_p=request.top_p or settings['top_p'],
                         extra_body = extra_params, # 其他参数
                         **extra
@@ -1695,7 +1706,6 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                         messages=msg,  # 添加图片信息到消息
                         temperature=request.temperature,
                         stream=True,
-                        max_tokens=request.max_tokens or settings['max_tokens'],
                         top_p=request.top_p or settings['top_p'],
                         extra_body = extra_params, # 其他参数
                         **extra
@@ -2276,7 +2286,6 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                                 model=settings['reasoner']['model'],
                                 messages=msg,
                                 stream=True,
-                                max_tokens=settings['reasoner']['max_tokens'], # 根据实际情况调整
                                 stop=settings['reasoner']['stop_words'],
                                 temperature=settings['reasoner']['temperature']
                             )
@@ -2312,7 +2321,6 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                             temperature=request.temperature,
                             tools=tools,
                             stream=True,
-                            max_tokens=request.max_tokens or settings['max_tokens'],
                             top_p=request.top_p or settings['top_p'],
                             extra_body = extra_params, # 其他参数
                             **extra
@@ -2323,7 +2331,6 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                             messages=msg,  # 添加图片信息到消息
                             temperature=request.temperature,
                             stream=True,
-                            max_tokens=request.max_tokens or settings['max_tokens'],
                             top_p=request.top_p or settings['top_p'],
                             extra_body = extra_params, # 其他参数
                             **extra
@@ -2980,9 +2987,14 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             kb_list = []
         request = await tools_change_messages(request, settings)
         chat_vendor = 'OpenAI'
+        reasoner_vendor = 'OpenAI'
         for modelProvider in settings['modelProviders']: 
             if modelProvider['id'] == settings['selectedProvider']:
                 chat_vendor = modelProvider['vendor']
+                break
+        for modelProvider in settings['modelProviders']: 
+            if modelProvider['id'] == settings['reasoner']['selectedProvider']:
+                reasoner_vendor = modelProvider['vendor']
                 break
         if chat_vendor == 'Dify':
             try:
@@ -3053,7 +3065,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 model=model,
                 messages=deepsearch_messages,
                 temperature=0.5, 
-                max_tokens=512,
                 extra_body = extra_params, # 其他参数
             )
             user_prompt = response.choices[0].message.content
@@ -3074,6 +3085,14 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             msg = await images_add_in_messages(reasoner_messages, images,settings)   
             extra = {}
             reasoner_extra = {}
+            if chat_vendor == 'OpenAI':
+                extra['max_completion_tokens'] = request.max_tokens or settings['max_tokens']
+            else:
+                extra['max_tokens'] = request.max_tokens or settings['max_tokens']
+            if reasoner_vendor == 'OpenAI':
+                reasoner_extra['max_completion_tokens'] = settings['reasoner']['max_tokens']
+            else:
+                reasoner_extra['max_tokens'] = settings['reasoner']['max_tokens']
             if request.reasoning_effort or settings['reasoning_effort']:
                 extra['reasoning_effort'] = request.reasoning_effort or settings['reasoning_effort']
             if settings['reasoner']['reasoning_effort'] is not None:
@@ -3109,7 +3128,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     model=settings['reasoner']['model'],
                     messages=msg,
                     stream=False,
-                    max_tokens=settings['reasoner']['max_tokens'], # 根据实际情况调整
                     stop=settings['reasoner']['stop_words'],
                     temperature=settings['reasoner']['temperature'],
                     **reasoner_extra
@@ -3137,7 +3155,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 temperature=request.temperature,
                 tools=tools,
                 stream=False,
-                max_tokens=request.max_tokens or settings['max_tokens'],
                 top_p=request.top_p or settings['top_p'],
                 extra_body = extra_params, # 其他参数
                 **extra
@@ -3148,7 +3165,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                 messages=msg,  # 添加图片信息到消息
                 temperature=request.temperature,
                 stream=False,
-                max_tokens=request.max_tokens or settings['max_tokens'],
                 top_p=request.top_p or settings['top_p'],
                 extra_body = extra_params, # 其他参数
                 **extra
@@ -3349,9 +3365,9 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                         model=settings['reasoner']['model'],
                         messages=msg,
                         stream=False,
-                        max_tokens=settings['reasoner']['max_tokens'], # 根据实际情况调整
                         stop=settings['reasoner']['stop_words'],
-                        temperature=settings['reasoner']['temperature']
+                        temperature=settings['reasoner']['temperature'],
+                        **reasoner_extra
                     )
                     content_prepend(request.messages, 'assistant', reasoner_response.model_dump()['choices'][0]['message']['reasoning_content']) # 可参考的推理过程
             msg = await images_add_in_messages(request.messages, images,settings)
@@ -3362,7 +3378,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     temperature=request.temperature,
                     tools=tools,
                     stream=False,
-                    max_tokens=request.max_tokens or settings['max_tokens'],
                     top_p=request.top_p or settings['top_p'],
                     extra_body = extra_params, # 其他参数
                     **extra
@@ -3373,7 +3388,6 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
                     messages=msg,  # 添加图片信息到消息
                     temperature=request.temperature,
                     stream=False,
-                    max_tokens=request.max_tokens or settings['max_tokens'],
                     top_p=request.top_p or settings['top_p'],
                     extra_body = extra_params, # 其他参数
                     **extra
@@ -4238,6 +4252,195 @@ async def asr_websocket_endpoint(websocket: WebSocket):
         if funasr_websocket:
             await funasr_websocket.close()
 
+@app.post("/asr")
+async def asr_transcription(
+    audio: UploadFile = File(...),
+    format: str = Form(default="auto")
+):
+    """
+    HTTP版本的ASR接口
+    支持多种音频格式，根据配置自动选择ASR引擎
+    """
+    try:
+        # 读取上传的音频文件
+        audio_bytes = await audio.read()
+        print(f"Received audio file: {audio.filename}, size: {len(audio_bytes)} bytes")
+        
+        # 自动检测格式（如果用户没有指定）
+        if format == "auto":
+            if audio.filename:
+                file_ext = audio.filename.split('.')[-1].lower()
+                format = file_ext if file_ext in ['wav', 'mp3', 'flac', 'ogg', 'm4a'] else 'wav'
+            else:
+                format = 'wav'
+        
+        # 加载设置
+        settings = await load_settings()
+        asr_settings = settings.get('asrSettings', {})
+        asr_engine = asr_settings.get('engine', 'openai')
+        
+        result = ""
+        
+        if asr_engine == "openai":
+            # OpenAI ASR
+            print("Using OpenAI ASR engine")
+            audio_file = BytesIO(audio_bytes)
+            audio_file.name = f"audio.{format}"
+            
+            client = AsyncOpenAI(
+                api_key=asr_settings.get('api_key', ''),
+                base_url=asr_settings.get('base_url', '') or "https://api.openai.com/v1"
+            )
+            
+            response = await client.audio.transcriptions.create(
+                file=audio_file,
+                model=asr_settings.get('model', 'whisper-1'),
+            )
+            result = response.text
+            
+        elif asr_engine == "funasr":
+            # FunASR（强制使用离线模式）
+            print("Using FunASR engine (offline mode)")
+            result = await funasr_recognize_offline(audio_bytes, asr_settings)
+            
+        elif asr_engine == "sherpa":
+            # Sherpa ASR
+            print("Using Sherpa ASR engine")
+            result = await sherpa_recognize(audio_bytes)
+        
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": f"不支持的ASR引擎: {asr_engine}",
+                    "text": ""
+                }
+            )
+        
+        # 返回识别结果
+        return JSONResponse(
+            content={
+                "success": True,
+                "text": result.strip(),
+                "engine": asr_engine,
+                "format": format
+            }
+        )
+        
+    except Exception as e:
+        print(f"ASR HTTP interface error: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": str(e),
+                "text": ""
+            }
+        )
+
+async def funasr_recognize_offline(audio_data: bytes, funasr_settings: dict) -> str:
+    """
+    FunASR离线识别（专为HTTP接口优化）
+    """
+    try:
+        # 获取FunASR服务器地址
+        funasr_url = funasr_settings.get('funasr_ws_url', 'ws://localhost:10095')
+        hotwords = funasr_settings.get('hotwords', '')
+        if not funasr_url.startswith('ws://') and not funasr_url.startswith('wss://'):
+            funasr_url = f"ws://{funasr_url}"
+        
+        # 连接到FunASR服务器
+        async with websockets.connect(funasr_url) as websocket:
+            print(f"Connected to FunASR server: {funasr_url}")
+            
+            # 1. 发送初始化配置（强制离线模式）
+            init_config = {
+                "chunk_size": [5, 10, 5],
+                "wav_name": "http_client",
+                "is_speaking": True,
+                "chunk_interval": 10,
+                "mode": "offline",  # 强制使用离线模式
+                "hotwords": hotwords_to_json(hotwords),
+                "use_itn": True
+            }
+            
+            await websocket.send(json.dumps(init_config))
+            print("Sent init config for offline mode")
+            
+            # 2. 转换音频数据为PCM16格式
+            pcm_data = convert_audio_to_pcm16(audio_data)
+            print(f"PCM data length: {len(pcm_data)} bytes")
+            
+            # 3. 分块发送音频数据
+            chunk_size = 960  # 30ms的音频数据
+            total_sent = 0
+            
+            while total_sent < len(pcm_data):
+                chunk_end = min(total_sent + chunk_size, len(pcm_data))
+                chunk = pcm_data[total_sent:chunk_end]
+                await websocket.send(chunk)
+                total_sent = chunk_end
+            
+            print(f"Sent all audio data: {total_sent} bytes")
+            
+            # 4. 发送结束信号
+            end_config = {
+                "is_speaking": False,
+            }
+            await websocket.send(json.dumps(end_config))
+            print("Sent end signal")
+            
+            # 5. 等待识别结果
+            result_text = ""
+            timeout_count = 0
+            max_timeout = 300  # 最大等待30秒（HTTP接口可以等待更久）
+            
+            while timeout_count < max_timeout:
+                try:
+                    response = await asyncio.wait_for(websocket.recv(), timeout=0.1)
+                    
+                    try:
+                        json_response = json.loads(response)
+                        print(f"Received response: {json_response}")
+                        
+                        if 'text' in json_response:
+                            text = json_response['text']
+                            if text and text.strip():
+                                result_text += text
+                                print(f"Got text: {text}")
+                            
+                            # 检查是否为最终结果
+                            if json_response.get('is_final', False):
+                                print("Got final result")
+                                break
+                                
+                    except json.JSONDecodeError:
+                        # 忽略非JSON格式的响应
+                        pass
+                        
+                except asyncio.TimeoutError:
+                    timeout_count += 1
+                    continue
+                except websockets.exceptions.ConnectionClosed:
+                    print("WebSocket connection closed")
+                    break
+            
+            if not result_text:
+                print("No recognition result received")
+                return ""
+            
+            return result_text.strip()
+            
+    except Exception as e:
+        print(f"FunASR offline recognition error: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"FunASR识别错误: {str(e)}"
+
 
 async def handle_funasr_response(funasr_websocket, 
                                client_websocket: WebSocket):
@@ -4460,17 +4663,29 @@ async def text_to_speech(request: Request):
         text = data['text']
         if text == "":
             return JSONResponse(status_code=400, content={"error": "Text is empty"})
+        
+        # 飞书专用：强制使用opus格式
+        is_feishu = data.get('mobile_optimized', False)
+        target_format = "opus" if is_feishu else data.get('format', 'mp3')
+        
         new_voice = data.get('voice','default')
         tts_settings = data['ttsSettings']
         if new_voice in tts_settings['newtts'] and new_voice!='default':
             tts_settings = tts_settings['newtts'][new_voice]
         index = data['index']
         tts_engine = tts_settings.get('engine', 'edgetts')
+        
+        print(f"TTS请求 - 引擎: {tts_engine}, 格式: {target_format}, 飞书优化: {is_feishu}")
+        
         if tts_engine == 'edgetts':
             edgettsLanguage = tts_settings.get('edgettsLanguage', 'zh-CN')
             edgettsVoice = tts_settings.get('edgettsVoice', 'XiaoyiNeural')
             rate = tts_settings.get('edgettsRate', 1.0)
             full_voice_name = f"{edgettsLanguage}-{edgettsVoice}"
+            
+            # 飞书优化：稍微降低语速
+            if is_feishu:
+                rate = min(rate * 0.95, 1.1)
             
             rate_text = "+0%"
             if rate >= 1.0:
@@ -4480,72 +4695,113 @@ async def text_to_speech(request: Request):
                 rate_pent = (1.0 - rate) * 100
                 rate_text = f"-{int(rate_pent)}%"
             
-            print(f"Using Edge TTS with voice: {full_voice_name}")
-            
-            # 创建生成器函数用于流式传输
             async def generate_audio():
                 communicate = edge_tts.Communicate(text, full_voice_name, rate=rate_text)
+                
+                # 收集所有音频数据
+                audio_chunks = []
                 async for chunk in communicate.stream():
                     if chunk["type"] == "audio":
-                        yield chunk["data"]
+                        audio_chunks.append(chunk["data"])
+                
+                full_audio = b''.join(audio_chunks)
+                
+                # 如果需要opus格式，进行转换
+                if target_format == "opus":
+                    opus_audio = await convert_to_opus_simple(full_audio)
+                    # 分块返回
+                    chunk_size = 4096
+                    for i in range(0, len(opus_audio), chunk_size):
+                        yield opus_audio[i:i + chunk_size]
+                else:
+                    # 原始mp3格式
+                    chunk_size = 4096
+                    for i in range(0, len(full_audio), chunk_size):
+                        yield full_audio[i:i + chunk_size]
             
-            # 返回流式响应
+            # 设置正确的媒体类型和文件名
+            if target_format == "opus":
+                media_type = "audio/ogg"  # opus通常包装在ogg容器中
+                filename = f"tts_{index}.opus"
+            else:
+                media_type = "audio/mpeg"
+                filename = f"tts_{index}.mp3"
+            
             return StreamingResponse(
                 generate_audio(),
-                media_type="audio/mpeg",
+                media_type=media_type,
                 headers={
-                    "Content-Disposition": f"inline; filename=tts_{index}.mp3",
-                    "X-Audio-Index": str(index)
+                    "Content-Disposition": f"inline; filename={filename}",
+                    "X-Audio-Index": str(index),
+                    "X-Audio-Format": target_format
                 }
             )
+            
         elif tts_engine == 'customTTS':
-            # 构造 GET 请求参数
+            # Custom TTS处理
             params = {
                 "text": text,
                 "speaker": tts_settings.get('customTTSspeaker', ''),
-                "speed":tts_settings.get('customTTSspeed', 1.0)
+                "speed": tts_settings.get('customTTSspeed', 1.0)
             }
-            # 按行分割
+            
+            if is_feishu:
+                params["speed"] = min(params["speed"] * 0.95, 1.2)
+            
             custom_tts_servers_list = tts_settings.get('customTTSserver', 'http://127.0.0.1:9880').split('\n')
-            if len(custom_tts_servers_list) == 1:
-                custom_tt_server = custom_tts_servers_list[0]
-            else:
-                # 移除空行
-                custom_tts_servers_list = [server for server in custom_tts_servers_list if server.strip()]
-                # 根据index选择服务器
-                custom_tt_server = custom_tts_servers_list[index % len(custom_tts_servers_list)]
+            custom_tts_servers_list = [server for server in custom_tts_servers_list if server.strip()]
+            custom_tt_server = custom_tts_servers_list[index % len(custom_tts_servers_list)]
+            
             async def generate_audio():
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     try:
-                        # 发起流式 GET 请求到本地 Custom TTS 服务
-                        async with client.stream(
-                            "GET",
-                            custom_tt_server,
-                            params=params
-                        ) as response:
+                        async with client.stream("GET", custom_tt_server, params=params) as response:
                             response.raise_for_status()
+                            
+                            # 收集音频数据
+                            audio_chunks = []
                             async for chunk in response.aiter_bytes():
-                                yield chunk
+                                audio_chunks.append(chunk)
+                            
+                            full_audio = b''.join(audio_chunks)
+                            
+                            # 转换为opus
+                            if target_format == "opus":
+                                opus_audio = await convert_to_opus_simple(full_audio)
+                                chunk_size = 4096
+                                for i in range(0, len(opus_audio), chunk_size):
+                                    yield opus_audio[i:i + chunk_size]
+                            else:
+                                chunk_size = 4096
+                                for i in range(0, len(full_audio), chunk_size):
+                                    yield full_audio[i:i + chunk_size]
+                                    
                     except httpx.RequestError as e:
-                        print(f"Custom TTS 请求失败: {e}")
                         raise HTTPException(status_code=502, detail=f"Custom TTS 连接失败: {str(e)}")
+
+            if target_format == "opus":
+                media_type = "audio/ogg"
+                filename = f"tts_{index}.opus"
+            else:
+                media_type = "audio/wav"
+                filename = f"tts_{index}.wav"
 
             return StreamingResponse(
                 generate_audio(),
-                media_type="audio/wav",
+                media_type=media_type,
                 headers={
-                    "Content-Disposition": f"inline; filename=tts_{index}.wav",
-                    "X-Audio-Index": str(index)
+                    "Content-Disposition": f"inline; filename={filename}",
+                    "X-Audio-Index": str(index),
+                    "X-Audio-Format": target_format
                 }
             )
-        # GSV处理逻辑
+            
         elif tts_engine == 'GSV':
+            # GSV本身可以直接生成opus
             audio_path = os.path.join(UPLOAD_FILES_DIR, tts_settings.get('gsvRefAudioPath', ''))
             if not os.path.exists(audio_path):
-                # 如果音频文件不存在，则认为是相对路径
                 audio_path = tts_settings.get('gsvRefAudioPath', '')
 
-            # 构建核心请求参数
             gsv_params = {
                 "text": text,
                 "text_lang": tts_settings.get('gsvTextLang', 'zh'),
@@ -4556,44 +4812,44 @@ async def text_to_speech(request: Request):
                 "sample_steps": tts_settings.get('gsvSample_steps', 4),
                 "streaming_mode": True,
                 "text_split_method": "cut0",
-                "media_type": "ogg",
+                "media_type": "opus" if target_format == "opus" else "ogg",
                 "batch_size": 20,
                 "seed": 42,
             }
-            # 按行分割
+            
+            if is_feishu:
+                gsv_params["speed_factor"] = min(gsv_params["speed_factor"] * 0.95, 1.1)
+            
             gsvServer_list = tts_settings.get('gsvServer', 'http://127.0.0.1:9880').split('\n')
-            if len(gsvServer_list) == 1:
-                gsvServer = gsvServer_list[0]
-            else:
-                # 移除空行
-                gsvServer_list = [server for server in gsvServer_list if server.strip()]
-                # 根据index选择服务器
-                gsvServer = gsvServer_list[index % len(gsvServer_list)]
+            gsvServer_list = [server for server in gsvServer_list if server.strip()]
+            gsvServer = gsvServer_list[index % len(gsvServer_list)]
+                
             async def generate_audio():
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     try:
-                        async with client.stream(
-                            "POST",
-                            f"{gsvServer}/tts",
-                            json=gsv_params
-                        ) as response:
+                        async with client.stream("POST", f"{gsvServer}/tts", json=gsv_params) as response:
                             response.raise_for_status()
                             async for chunk in response.aiter_bytes():
                                 yield chunk
                     except httpx.HTTPStatusError as e:
-                        error_detail = f"GSV服务错误: {e.response.status_code} - {await e.response.text()}"
+                        error_detail = f"GSV服务错误: {e.response.status_code}"
                         raise HTTPException(status_code=502, detail=error_detail)
+            
+            media_type = "audio/ogg"
+            filename = f"tts_{index}.opus" if target_format == "opus" else f"tts_{index}.ogg"
             
             return StreamingResponse(
                 generate_audio(),
-                media_type="audio/ogg",
+                media_type=media_type,
                 headers={
-                    "Content-Disposition": f"inline; filename=tts_{index}.ogg",
-                    "X-Audio-Index": str(index)
+                    "Content-Disposition": f"inline; filename={filename}",
+                    "X-Audio-Index": str(index),
+                    "X-Audio-Format": target_format
                 }
             )
+            
         elif tts_engine == 'openai':
-            # 从设置获取OpenAI TTS参数
+            # OpenAI TTS处理
             openai_config = {
                 'api_key': tts_settings.get('api_key', ''),
                 'model': tts_settings.get('model', 'tts-1'),
@@ -4604,37 +4860,30 @@ async def text_to_speech(request: Request):
                 'ref_audio': tts_settings.get('gsvRefAudioPath', '')
             }
             
-            # 验证API密钥
             if not openai_config['api_key']:
                 raise HTTPException(status_code=400, detail="OpenAI API密钥未配置")
             
-            print(f"Using OpenAI TTS with model: {openai_config['model']}, voice: {openai_config['voice']}")
+            speed = float(openai_config['speed'])
+            if is_feishu:
+                speed = min(speed * 0.95, 1.2)
             
-            # 速度限制在0.25到4.0之间
-            speed = max(0.25, min(4.0, float(openai_config['speed'])))
+            speed = max(0.25, min(4.0, speed))
 
             async def generate_audio():
                 try:
-                    # 使用异步OpenAI客户端
                     client = AsyncOpenAI(
                         api_key=openai_config['api_key'],
                         base_url=openai_config['base_url']
                     )
+                    
                     if openai_config['ref_audio']:
-                        # Option 1: Use a local audio file (convert to base64 data URI)
-                        audio_file_path = os.path.join(UPLOAD_FILES_DIR, openai_config['ref_audio'])  # Change this to your local file path
-                        
-                        # Read the audio file and encode as base64
+                        audio_file_path = os.path.join(UPLOAD_FILES_DIR, openai_config['ref_audio'])
                         with open(audio_file_path, "rb") as audio_file:
                             audio_data = audio_file.read()
-                        
-                        # Get the file extension/type (e.g., 'mp3', 'wav')
-                        audio_type = Path(audio_file_path).suffix[1:]  # removes the dot
-                        
-                        # Create proper data URI format
+                        audio_type = Path(audio_file_path).suffix[1:]
                         audio_base64 = base64.b64encode(audio_data).decode('utf-8')
                         audio_uri = f"data:audio/{audio_type};base64,{audio_base64}"
-                        # 创建语音请求
+                        
                         response = await client.audio.speech.create(
                             model=openai_config['model'],
                             voice=None,
@@ -4645,7 +4894,6 @@ async def text_to_speech(request: Request):
                             } 
                         )
                     else:
-                        # 创建语音请求
                         response = await client.audio.speech.create(
                             model=openai_config['model'],
                             voice=openai_config['voice'],
@@ -4653,24 +4901,35 @@ async def text_to_speech(request: Request):
                             speed=speed
                         )
                     
-                    # 获取整个响应内容并分块返回
                     content = await response.aread()
-                    chunk_size = 4096  # 4KB chunks
+                    
+                    # 转换为opus
+                    if target_format == "opus":
+                        opus_content = await convert_to_opus_simple(content)
+                        content = opus_content
+                    
+                    chunk_size = 4096
                     for i in range(0, len(content), chunk_size):
                         yield content[i:i + chunk_size]
-                        await asyncio.sleep(0)  # Allow other tasks to run
+                        await asyncio.sleep(0)
                         
                 except Exception as e:
-                    print(f"OpenAI TTS error: {str(e)}")
                     raise HTTPException(status_code=500, detail=f"OpenAI TTS错误: {str(e)}")
             
-            # 返回流式响应
+            if target_format == "opus":
+                media_type = "audio/ogg"
+                filename = f"tts_{index}.opus"
+            else:
+                media_type = "audio/mpeg"
+                filename = f"tts_{index}.mp3"
+            
             return StreamingResponse(
                 generate_audio(),
-                media_type="audio/mpeg",
+                media_type=media_type,
                 headers={
-                    "Content-Disposition": f"inline; filename=tts_{index}.mp3",
-                    "X-Audio-Index": str(index)
+                    "Content-Disposition": f"inline; filename={filename}",
+                    "X-Audio-Index": str(index),
+                    "X-Audio-Format": target_format
                 }
             )
         
@@ -4678,6 +4937,51 @@ async def text_to_speech(request: Request):
     
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"服务器内部错误: {str(e)}"})
+
+from pydub import AudioSegment
+from imageio_ffmpeg import get_ffmpeg_exe   # ① 关键：拿到捆绑的 ffmpeg
+
+# 让 pydub 使用我们自带的 ffmpeg，而不是去系统 PATH 里找
+AudioSegment.converter = get_ffmpeg_exe()
+async def convert_to_opus_simple(audio_data):
+    """使用pydub将音频转换为opus格式（适合飞书）"""
+    try:
+        
+        try:
+            # ② 先尝试用 pydub 自动探测格式
+            audio_io = io.BytesIO(audio_data)
+            audio = AudioSegment.from_file(audio_io)          # 会自动调用捆绑的 ffmpeg
+        except Exception as e:
+            logging.warning(f"pydub 自动探测失败({e})，降级为 WAV 假设")
+            audio_io = io.BytesIO(audio_data)
+            audio = AudioSegment.from_wav(audio_io)           # 纯 WAV 场景
+
+        # ③ 统一成飞书推荐参数
+        audio = (audio
+                .set_frame_rate(16000)
+                .set_channels(1))
+
+        # ④ 导出 opus
+        out_io = io.BytesIO()
+        audio.export(
+            out_io,
+            format="opus",
+            codec="libopus",
+            parameters=["-b:a", "64k",
+                        "-application", "voip",
+                        "-compression_level", "3"]
+        )
+        opus_data = out_io.getvalue()
+        logging.info(f"Opus 转换完成：{len(audio_data)} B → {len(opus_data)} B")
+        return opus_data
+
+        
+    except ImportError:
+        logging.error("pydub未安装，无法转换为opus格式")
+        return audio_data
+    except Exception as e:
+        logging.error(f"转换opus格式失败: {e}")
+        return audio_data
 
 # 添加状态存储
 mcp_status = {}
@@ -5844,16 +6148,6 @@ async def create_sticker_pack(
         logger.error(f"创建表情包时出错: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"服务器错误: {str(e)}")
 
-# 定义请求体
-class QQBotConfig(BaseModel):
-    QQAgent: str
-    memoryLimit: int
-    appid: str
-    secret: str
-    separators: List[str]
-    reasoningVisible: bool
-    quickRestart: bool
-    is_sandbox: bool
 
 # 全局机器人管理器
 qq_bot_manager = QQBotManager()
@@ -5908,6 +6202,71 @@ async def reload_qq_bot(config: QQBotConfig):
         return {
             "success": True,
             "message": "QQ机器人已重新加载",
+            "config_changed": True
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
+
+# 入口文件部分代码
+
+from py.feishu_bot_manager import FeishuBotConfig, FeishuBotManager
+
+# 全局飞书机器人管理器
+feishu_bot_manager = FeishuBotManager()
+
+@app.post("/start_feishu_bot")
+async def start_feishu_bot(config: FeishuBotConfig):
+    try:
+        feishu_bot_manager.start_bot(config)
+        return {
+            "success": True,
+            "message": "飞书机器人已成功启动",
+            "environment": "thread-based"
+        }
+    except Exception as e:
+        logger.error(f"启动飞书机器人失败: {e}")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False, 
+                "message": f"启动失败: {str(e)}",
+                "error_type": "startup_error"
+            }
+        )
+
+@app.post("/stop_feishu_bot")
+async def stop_feishu_bot():
+    try:
+        feishu_bot_manager.stop_bot()
+        return {"success": True, "message": "飞书机器人已停止"}
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
+
+@app.get("/feishu_bot_status")
+async def feishu_bot_status():
+    status = feishu_bot_manager.get_status()
+    # 如果有启动错误，在状态中包含错误信息
+    if status.get("startup_error") and not status.get("is_running"):
+        status["error_message"] = f"启动失败: {status['startup_error']}"
+    return status
+
+@app.post("/reload_feishu_bot")
+async def reload_feishu_bot(config: FeishuBotConfig):
+    try:
+        # 先停止再启动
+        feishu_bot_manager.stop_bot()
+        await asyncio.sleep(1)  # 等待完全停止
+        feishu_bot_manager.start_bot(config)
+        
+        return {
+            "success": True,
+            "message": "飞书机器人已重新加载",
             "config_changed": True
         }
     except Exception as e:
@@ -5998,314 +6357,11 @@ async def vrm_config():
     settings = await load_settings()
     return {"VRMConfig": settings.get("VRMConfig", {})}
 
-import http.cookies
-from typing import Optional, List
-import py.blivedm as blivedm
-import py.blivedm.models.web as web_models
-import py.blivedm.models.open_live as open_models
+from py.live_router import router as live_router, ws_router as live_ws_router
 
-# 全局变量存储直播客户端和相关状态
-live_client = None
-live_thread = None
-current_loop = None
-stop_event = None  # 新增：用于通知线程停止
-
-# Pydantic模型
-class LiveConfig(BaseModel):
-    bilibili_enabled: bool = False
-    bilibili_type: str = "web"
-    bilibili_room_id: str = ""
-    bilibili_sessdata: str = ""
-    bilibili_ACCESS_KEY_ID: str = ""
-    bilibili_ACCESS_KEY_SECRET: str = ""
-    bilibili_APP_ID: str = ""
-    bilibili_ROOM_OWNER_AUTH_CODE: str = ""
-
-class LiveConfigRequest(BaseModel):
-    config: LiveConfig
-
-class ApiResponse(BaseModel):
-    success: bool
-    message: str
-
-# WebSocket管理器
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-
-    async def broadcast(self, data: dict):
-        disconnected = []
-        for connection in self.active_connections:
-            try:
-                await connection.send_json(data)
-            except:
-                disconnected.append(connection)
-        
-        # 清理断开的连接
-        for connection in disconnected:
-            self.disconnect(connection)
-
-manager = ConnectionManager()
-
-# API路由
-@app.post("/api/live/start", response_model=ApiResponse)
-async def start_live(request: LiveConfigRequest):
-    global live_client, live_thread, stop_event
-    
-    try:
-        if live_client is not None:
-            return ApiResponse(success=False, message="直播监听已在运行")
-        
-        config = request.config
-        
-        # 验证配置
-        if not config.bilibili_enabled:
-            return ApiResponse(success=False, message="请先启用B站直播监听")
-        
-        if config.bilibili_type == "web":
-            if not config.bilibili_room_id:
-                return ApiResponse(success=False, message="请输入房间ID")
-        elif config.bilibili_type == "open_live":
-            if not all([
-                config.bilibili_ACCESS_KEY_ID,
-                config.bilibili_ACCESS_KEY_SECRET,
-                config.bilibili_APP_ID,
-                config.bilibili_ROOM_OWNER_AUTH_CODE
-            ]):
-                return ApiResponse(success=False, message="请完整填写开放平台配置信息")
-        
-        # 创建停止事件
-        stop_event = threading.Event()
-        
-        # 创建新线程运行直播监听
-        live_thread = threading.Thread(target=run_live_client, args=(config.dict(),))
-        live_thread.daemon = True
-        live_thread.start()
-        
-        # 等待一下确保客户端启动
-        await asyncio.sleep(0.5)
-        
-        return ApiResponse(success=True, message="直播监听启动成功")
-    except Exception as e:
-        return ApiResponse(success=False, message=f"启动失败: {str(e)}")
-
-@app.post("/api/live/stop", response_model=ApiResponse)
-async def stop_live():
-    global live_client, live_thread, current_loop, stop_event
-    
-    try:
-        if live_client is None:
-            return ApiResponse(success=True, message="直播监听未运行")
-        
-        print("开始停止直播监听...")
-        
-        # 设置停止事件
-        if stop_event:
-            stop_event.set()
-        
-        # 如果有事件循环，在其中停止客户端
-        if current_loop and not current_loop.is_closed():
-            try:
-                # 创建一个任务来停止客户端
-                future = asyncio.run_coroutine_threadsafe(
-                    stop_live_client(), 
-                    current_loop
-                )
-                # 等待停止完成，最多等待5秒
-                future.result(timeout=5)
-                print("客户端停止成功")
-            except asyncio.TimeoutError:
-                print("停止客户端超时")
-            except Exception as e:
-                print(f"停止客户端时出错: {e}")
-        
-        # 等待线程结束
-        if live_thread and live_thread.is_alive():
-            live_thread.join(timeout=3)
-            if live_thread.is_alive():
-                print("警告: 线程未能在超时时间内结束")
-        
-        # 清理全局变量
-        live_client = None
-        live_thread = None
-        current_loop = None
-        stop_event = None
-        
-        print("直播监听停止完成")
-        return ApiResponse(success=True, message="直播监听停止成功")
-        
-    except Exception as e:
-        print(f"停止直播监听时出错: {e}")
-        return ApiResponse(success=False, message=f"停止失败: {str(e)}")
-
-async def stop_live_client():
-    """停止直播客户端的异步函数"""
-    global live_client
-    
-    if live_client:
-        try:
-            await live_client.stop_and_close()
-            print("直播客户端已停止")
-        except Exception as e:
-            print(f"停止直播客户端时出错: {e}")
-        finally:
-            live_client = None
-
-@app.post("/api/live/reload", response_model=ApiResponse)
-async def reload_live(request: LiveConfigRequest):
-    try:
-        # 先停止
-        stop_result = await stop_live()
-        if not stop_result.success:
-            return stop_result
-            
-        # 等待一下确保完全停止
-        await asyncio.sleep(2)
-        
-        # 再启动
-        return await start_live(request)
-    except Exception as e:
-        return ApiResponse(success=False, message=f"重载失败: {str(e)}")
-
-# WebSocket路由
-@app.websocket("/ws/live/danmu")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            # 保持连接活跃，接收心跳消息
-            data = await websocket.receive_text()
-            if data == "ping":
-                await websocket.send_text("pong")
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
-def init_session(sessdata: str = "") -> Optional[aiohttp.ClientSession]:
-    """初始化aiohttp会话"""
-    cookies = http.cookies.SimpleCookie()
-    if sessdata:
-        cookies['SESSDATA'] = sessdata
-        cookies['SESSDATA']['domain'] = 'bilibili.com'
-
-    session = aiohttp.ClientSession()
-    if sessdata:
-        session.cookie_jar.update_cookies(cookies)
-    return session
-
-def run_live_client(config: dict):
-    """在新线程中运行直播客户端"""
-    global live_client, current_loop, stop_event
-    
-    try:
-        # 创建新的事件循环
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        current_loop = loop
-        
-        print("开始运行直播客户端...")
-        
-        # 运行异步函数
-        loop.run_until_complete(start_live_client(config))
-        
-    except Exception as e:
-        print(f"直播客户端运行错误: {e}")
-        # 通知前端错误
-        if current_loop and not current_loop.is_closed():
-            try:
-                asyncio.run_coroutine_threadsafe(manager.broadcast({
-                    'type': 'error',
-                    'message': str(e)
-                }), current_loop)
-            except:
-                pass
-    finally:
-        print("直播客户端线程结束")
-        # 清理
-        if current_loop and not current_loop.is_closed():
-            try:
-                current_loop.close()
-            except:
-                pass
-        current_loop = None
-        live_client = None
-
-async def start_live_client(config: dict):
-    """启动直播客户端"""
-    global live_client, stop_event
-    
-    session = None
-    
-    try:
-        bilibili_type = config.get('bilibili_type', 'web')
-        
-        if bilibili_type == 'web':
-            # Web类型客户端
-            room_id = int(config.get('bilibili_room_id', 0))
-            sessdata = config.get('bilibili_sessdata', '')
-            
-            # 初始化session
-            session = init_session(sessdata)
-            
-            live_client = blivedm.BLiveClient(room_id, session=session)
-            handler = WebSocketHandler()
-            live_client.set_handler(handler)
-            
-        elif bilibili_type == 'open_live':
-            # 开放平台类型客户端
-            access_key_id = config.get('bilibili_ACCESS_KEY_ID', '')
-            access_key_secret = config.get('bilibili_ACCESS_KEY_SECRET', '')
-            app_id = int(config.get('bilibili_APP_ID', 0))
-            room_owner_auth_code = config.get('bilibili_ROOM_OWNER_AUTH_CODE', '')
-            
-            live_client = blivedm.OpenLiveClient(
-                access_key_id=access_key_id,
-                access_key_secret=access_key_secret,
-                app_id=app_id,
-                room_owner_auth_code=room_owner_auth_code,
-            )
-            handler = OpenLiveWebSocketHandler()
-            live_client.set_handler(handler)
-        
-        else:
-            raise ValueError(f"不支持的直播类型: {bilibili_type}")
-        
-        print(f"启动{bilibili_type}类型的直播客户端")
-        live_client.start()
-        
-        # 保持运行，直到收到停止信号
-        try:
-            while not (stop_event and stop_event.is_set()):
-                await asyncio.sleep(1)
-            print("收到停止信号，准备停止客户端")
-        except asyncio.CancelledError:
-            print("客户端被取消")
-            
-    except Exception as e:
-        print(f"启动直播客户端错误: {e}")
-        raise
-    finally:
-        # 清理资源
-        if live_client:
-            try:
-                await live_client.stop_and_close()
-                print("客户端已关闭")
-            except Exception as e:
-                print(f"关闭客户端时出错: {e}")
-        
-        if session:
-            try:
-                await session.close()
-                print("Session已关闭")
-            except Exception as e:
-                print(f"关闭Session时出错: {e}")
+# 2. 分别挂载
+app.include_router(live_router)     # /api/live/*
+app.include_router(live_ws_router)  # /ws/live/*
 
 
 # ---------- 工具 ----------
@@ -6429,141 +6485,6 @@ async def delete_text(memory_id: str, idx: int) -> dict:
     # 3. 落盘
     save_index_and_meta(memory_id, new_index, list_to_dict(meta_list))
     return {"message": "deleted", "idx": idx}
-
-class WebSocketHandler(blivedm.BaseHandler):
-    """Web类型WebSocket处理器"""
-    
-    def _on_heartbeat(self, client: blivedm.BLiveClient, message: web_models.HeartbeatMessage):
-        print(f'[{client.room_id}] 心跳')
-
-    def _on_danmaku(self, client: blivedm.BLiveClient, message: web_models.DanmakuMessage):
-        msg_text = f'{message.uname}发送弹幕：{message.msg}'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "danmaku"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-    
-    def _on_gift(self, client: blivedm.BLiveClient, message: web_models.GiftMessage):
-        msg_text = f'{message.uname} 赠送{message.gift_name}x{message.num} （{message.coin_type}瓜子x{message.total_coin}）'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "gift"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-    
-    def _on_buy_guard(self, client: blivedm.BLiveClient, message: web_models.GuardBuyMessage):
-        msg_text = f'{message.username} 上舰，guard_level={message.guard_level}'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "buy_guard"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-    
-    def _on_super_chat(self, client: blivedm.BLiveClient, message: web_models.SuperChatMessage):
-        msg_text = f'{message.uname}发送醒目留言：{message.message}'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "super_chat"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-
-    def _on_interact_word(self, client: blivedm.BLiveClient, message: web_models.InteractWordMessage):
-        if message.msg_type == 1:
-            msg_text =  f'{message.username} 进入房间'
-            data = {
-                'type': 'message',
-                'content': msg_text,
-                "danmu_type": "enter_room"
-            }
-            print(msg_text)
-            asyncio.create_task(manager.broadcast(data))
-        elif message.msg_type == 2:
-            msg_text = f'{message.username} 关注了你'
-            data = {
-                'type': 'message',
-                'content': msg_text,
-                "danmu_type": "follow"
-            }
-            print(msg_text)
-            asyncio.create_task(manager.broadcast(data))
-
-
-class OpenLiveWebSocketHandler(blivedm.BaseHandler):
-    """开放平台类型WebSocket处理器"""
-    
-    def _on_heartbeat(self, client: blivedm.OpenLiveClient, message: web_models.HeartbeatMessage):
-        print(f'[开放平台] 心跳')
-
-    def _on_open_live_danmaku(self, client: blivedm.OpenLiveClient, message: open_models.DanmakuMessage):
-        msg_text = f'{message.uname}发送弹幕：{message.msg}'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "danmaku"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-
-    def _on_open_live_gift(self, client: blivedm.OpenLiveClient, message: open_models.GiftMessage):
-        coin_type = '金瓜子' if message.paid else '银瓜子'
-        total_coin = message.price * message.gift_num
-        msg_text = f'{message.uname} 赠送{message.gift_name}x{message.gift_num} （{coin_type}x{total_coin}）'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "gift"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-
-    def _on_open_live_buy_guard(self, client: blivedm.OpenLiveClient, message: open_models.GuardBuyMessage):
-        msg_text = f'{message.user_info.uname} 购买 大航海等级={message.guard_level}'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "buy_guard"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-
-    def _on_open_live_super_chat(self, client: blivedm.OpenLiveClient, message: open_models.SuperChatMessage):
-        msg_text = f'{message.uname}发送醒目留言：{message.message}'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "super_chat"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-
-    def _on_open_live_like(self, client: blivedm.OpenLiveClient, message: open_models.LikeMessage):
-        msg_text = f'{message.uname} 点赞'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "like"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
-
-    def _on_open_live_enter_room(self, client: blivedm.OpenLiveClient, message: open_models.RoomEnterMessage):
-        msg_text = f'{message.uname} 进入房间'
-        data = {
-            'type': 'message',
-            'content': msg_text,
-            "danmu_type": "enter_room"
-        }
-        print(msg_text)
-        asyncio.create_task(manager.broadcast(data))
 
 @app.get("/api/update_proxy")
 async def update_proxy():
@@ -6748,6 +6669,15 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"WebSocket error: {e}")
     finally:
         active_connections.remove(websocket)
+
+from py.uv_api import router as uv_router
+app.include_router(uv_router)
+
+from py.node_api import router as node_router 
+app.include_router(node_router)
+
+from py.git_api import router as git_router
+app.include_router(git_router)
 
 from py.extensions import router as extensions_router
 
