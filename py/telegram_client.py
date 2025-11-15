@@ -21,10 +21,14 @@ class TelegramClient:
         self._shutdown_requested = False
         self.offset = 0
         self.session: Optional[aiohttp.ClientSession] = None
+        self.port = get_port()
 
     # -------------------- 生命周期 --------------------
     async def run(self):
-        self.session = aiohttp.ClientSession()
+        # Add a session timeout slightly above the polling timeout
+        timeout = aiohttp.ClientTimeout(total=35)  # 5s buffer
+        self.session = aiohttp.ClientSession(timeout=timeout)
+        
         self._is_ready = True
         if self._manager_ref:
             manager = self._manager_ref()
@@ -35,15 +39,24 @@ class TelegramClient:
         logging.info("Telegram 轮询开始")
         try:
             while not self._shutdown_requested:
-                updates = await self._get_updates()
-                for u in updates:
-                    await self._handle_update(u)
+                try:
+                    updates = await self._get_updates()
+                    for u in updates:
+                        await self._handle_update(u)
+                except asyncio.TimeoutError:
+                    # Normal when shutdown happens during long poll
+                    pass
+                
+                # Prevent tight loop when no updates
+                if not updates:
+                    await asyncio.sleep(0.1)
         finally:
             await self.session.close()
 
     async def _get_updates(self):
         url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates"
-        async with self.session.get(url, params={"offset": self.offset, "timeout": 30}) as resp:
+        # CRITICAL: Reduce from 30s to 5s for responsive shutdown
+        async with self.session.get(url, params={"offset": self.offset, "timeout": 5}) as resp:
             if resp.status != 200:
                 return []
             data = await resp.json()
@@ -188,13 +201,19 @@ class TelegramClient:
                     state["text_buffer"] = buf[split_pos:]
                     clean = self._clean_text(send_chunk)
                     if clean:
-                        await self._send_text(chat_id, clean)
+                        if self.enableTTS:
+                            pass
+                        else:
+                            await self._send_text(chat_id, clean)
 
         # 剩余文本
         if state["text_buffer"]:
             clean = self._clean_text(state["text_buffer"])
             if clean:
-                await self._send_text(chat_id, clean)
+                if self.enableTTS:
+                    pass
+                else:
+                    await self._send_text(chat_id, clean)
 
         # 提取并发送图片
         self._extract_images("".join(full_response), state)
@@ -237,20 +256,66 @@ class TelegramClient:
         data.add_field("photo", io.BytesIO(img_bytes), filename="image.jpg")
         await self.session.post(url, data=data)
 
+    def clean_markdown(self, buffer):
+        # Remove heading marks (#, ##, ### etc.)
+        buffer = re.sub(r'#{1,6}\s', '', buffer, flags=re.MULTILINE)
+        
+        # Remove single Markdown formatting characters (*_~`) but keep if they appear consecutively
+        buffer = re.sub(r'[*_~`]+', '', buffer)
+        
+        # Remove list item marks (- or * at line start)
+        buffer = re.sub(r'^\s*[-*]\s', '', buffer, flags=re.MULTILINE)
+        
+        # Remove emoji and other Unicode symbols
+        buffer = re.sub(r'[\u2600-\u27BF\u2700-\u27BF\U0001F300-\U0001F9FF]', '', buffer)
+        
+        # Remove Unicode surrogate pairs
+        buffer = re.sub(r'[\uD800-\uDBFF][\uDC00-\uDFFF]', '', buffer)
+        
+        # Remove image marks (![alt](url))
+        buffer = re.sub(r'!\[.*?\]\(.*?\)', '', buffer)
+        
+        # Remove link marks ([text](url)), keeping the text
+        buffer = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', buffer)
+        
+        # Remove leading/trailing whitespace
+        return buffer.strip()
+
     async def _send_voice(self, chat_id: int, text: str):
-        # 调用本地 TTS 拿 opus
-        payload = {
-            "text": self._clean_text(text),
-            "voice": "default",
-            "format": "opus",
-            "mobile_optimized": True,
-        }
+        from py.get_setting import load_settings
         settings = await load_settings()
-        payload["ttsSettings"] = settings.get("ttsSettings", {})
-        async with self.session.post(f"http://127.0.0.1:{get_port()}/tts", json=payload) as resp:
-            if resp.status != 200:
-                return
-            opus_data = await resp.read()
+        tts_settings = settings.get("ttsSettings", {})
+        index = 0
+        text = self.clean_markdown(text)
+        payload = {
+            "text": text,
+            "voice": "default",
+            "ttsSettings": tts_settings,
+            "index": index,
+            "mobile_optimized": True,  # 飞书优化标志
+            "format": "opus"           # 明确请求opus格式
+        }
+
+        logging.info(f"发送TTS请求（opus格式），文本长度: {len(text)}，引擎: {tts_settings.get('engine', 'edgetts')}")
+
+        timeout = aiohttp.ClientTimeout(total=90, connect=30, sock_read=60)
+        
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                f"http://127.0.0.1:{self.port}/tts",
+                json=payload
+            ) as resp:
+                if resp.status != 200:
+                    logging.error(f"TTS 请求失败: {resp.status}")
+                    error_text = await resp.text()
+                    logging.error(f"TTS 错误响应: {error_text}")
+                    await self._send_text(chat_id, "语音生成失败，请稍后重试")
+                    return
+
+                opus_data = await resp.read()
+                audio_format = resp.headers.get("X-Audio-Format", "unknown")
+                
+                logging.info(f"TTS响应成功，opus大小: {len(opus_data) / 1024:.1f}KB，格式: {audio_format}")
         # 上传语音
         url = f"https://api.telegram.org/bot{self.bot_token}/sendVoice"
         data = aiohttp.FormData()

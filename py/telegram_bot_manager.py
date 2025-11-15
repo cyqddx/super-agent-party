@@ -27,8 +27,13 @@ class TelegramBotManager:
 
     # 以下四个接口与 FeishuBotManager 完全一致，直接复用路由
     def start_bot(self, config: TelegramBotConfig):
+        # ADD: Check if previous thread is still alive
+        if self.bot_thread and self.bot_thread.is_alive():
+            raise Exception("Telegram 机器人线程正在清理中，请稍后再试")
+        
         if self.is_running:
             raise Exception("Telegram 机器人已在运行")
+        
         self.config = config
         self._shutdown_event.clear()
         self._startup_complete.clear()
@@ -53,6 +58,7 @@ class TelegramBotManager:
         if not self.is_running:
             self.stop_bot()
             raise Exception("Telegram 机器人未能正常运行")
+
 
     def _run_bot_thread(self, config: TelegramBotConfig):
         try:
@@ -93,15 +99,23 @@ class TelegramBotManager:
     def _cleanup(self):
         self.is_running = False
         logging.info("开始清理 Telegram 机器人资源...")
+        
         if self.loop and not self.loop.is_closed():
             try:
                 pending = asyncio.all_tasks(self.loop)
                 for task in pending:
                     task.cancel()
-                self.loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                self.loop.close()
+                
+                # Stop loop if running
+                if self.loop.is_running():
+                    self.loop.stop()
+                
+                # Close loop
+                if not self.loop.is_closed():
+                    self.loop.close()
             except Exception as e:
                 logging.warning(f"关闭事件循环时出错: {e}")
+        
         self.bot_client = None
         self.loop = None
         self._shutdown_event.set()
@@ -111,14 +125,25 @@ class TelegramBotManager:
         if not self.is_running and not self.bot_thread:
             logging.info("Telegram 机器人未在运行")
             return
+        
         logging.info("正在停止 Telegram 机器人...")
         self._stop_requested = True
-        self._shutdown_event.set()
         self.is_running = False
+        
         if self.bot_client:
             self.bot_client._shutdown_requested = True
+        
+        self._shutdown_event.set()
+        
+        # Increase to 15s (must be > polling timeout)
         if self.bot_thread and self.bot_thread.is_alive():
-            self.bot_thread.join(timeout=5)
+            self.bot_thread.join(timeout=15)
+            
+            if self.bot_thread.is_alive():
+                logging.warning("Telegram 机器人线程未能在15秒内停止")
+                # Force cleanup as last resort
+                self._cleanup()
+        
         self._stop_requested = False
         logging.info("Telegram 机器人停止操作完成")
 
