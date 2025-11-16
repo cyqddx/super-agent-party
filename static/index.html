@@ -7563,6 +7563,19 @@ if ('serviceWorker' in navigator) {
                 </span>
               </el-button>
             </div>
+            <div class="tool-item">
+              <el-alert
+                type="info"
+                :closable="false"
+                class="mb-2"
+              >
+                <template #default>
+                  <div class="alert-content">
+                    {{ t('userfileNotice') }}
+                  </div>
+                </template>
+              </el-alert>
+            </div>
           </el-form>
           <!--eldialog 询问用户是否立即重启-->
           <el-dialog
