@@ -7555,6 +7555,31 @@ if ('serviceWorker' in navigator) {
               <el-button
                 class="browser-mode-btn"
                 type="primary"
+                @click="openLogfile"
+                round
+                size="large">
+                <span class="ml-2">
+                  {{ t('openLogfile') }}
+                </span>
+              </el-button>
+            </div>
+            <div class="tool-item">
+              <el-alert
+                type="info"
+                :closable="false"
+                class="mb-2"
+              >
+                <template #default>
+                  <div class="alert-content">
+                    {{ t('logfileNotice') }}
+                  </div>
+                </template>
+              </el-alert>
+            </div>
+            <div class="browser-mode-btn-container" v-show="isElectron">
+              <el-button
+                class="browser-mode-btn"
+                type="primary"
                 @click="openUserfile"
                 round
                 size="large">

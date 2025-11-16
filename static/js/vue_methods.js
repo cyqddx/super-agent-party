@@ -7115,6 +7115,22 @@ handleCreateDiscordSeparator(val) {
       }
     }
   },
+  async openLogfile(){
+    const response = await fetch('/api/get_userfile',{
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    if (response.ok) {
+      // 拿到userfile
+      const data = await response.json();
+      let userfile = data.userfile;    // 打开文件夹
+      if (this.isElectron){
+        window.electronAPI.openPath(userfile+'/logs');
+      }
+    }
+  },
   async openExtfile(){
     const response = await fetch('/api/get_extfile',{
       method: 'GET',
