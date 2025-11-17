@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, screen, shell, dialog, Tray, Menu } = requi
 const { clipboard, nativeImage,desktopCapturer  } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
+const iconv = require('iconv-lite') 
 const { spawn } = require('child_process')
 const { exec } = require('child_process');
 const { download } = require('electron-dl');
@@ -344,95 +345,151 @@ function createSkeletonWindow() {
 // 修改后的启动后端函数
 async function startBackend() {
   try {
-    // 查找可用端口
+    console.log('🔍 开始启动后端进程...')
+    
     const availablePort = await findAvailablePort(DEFAULT_PORT)
     PORT = availablePort
     
-    // 如果端口不是默认端口，记录变更
     if (PORT !== DEFAULT_PORT) {
-      console.log(`默认端口 ${DEFAULT_PORT} 被占用，已切换到端口 ${PORT}`)
+      console.log(`⚠️  默认端口 ${DEFAULT_PORT} 被占用，已切换到端口 ${PORT}`)
     }
     
+    // ★ 关键修改：无论开发还是生产模式都使用 pipe
     const spawnOptions = {
-      stdio: ['ignore', 'ignore', 'ignore'],
+      stdio: ['pipe', 'pipe', 'pipe'],  // 统一使用 pipe
       shell: false,
       env: {
         ...process.env,
         NODE_ENV: isDev ? 'development' : 'production',
-        PYTHONIOENCODING: 'utf-8'
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUNBUFFERED: '1',
+        PYTHON_WARNINGS: 'ignore'
       }
     }
 
-    // Windows 特殊处理
     if (process.platform === 'win32') {
-      spawnOptions.windowsHide = true
+      spawnOptions.windowsHide = !isDev
       spawnOptions.detached = false
-      spawnOptions.shell = false
       spawnOptions.windowsVerbatimArguments = false
-      spawnOptions.stdio = ['ignore', 'ignore', 'ignore']
     }
 
-    const networkVisible = process.env.networkVisible === 'global';
+    const networkVisible = process.env.networkVisible === 'global'
     const BACKEND_HOST = networkVisible ? '0.0.0.0' : HOST
 
     if (isDev) {
-      // 开发模式
+      console.log(`🐍 启动开发模式后端: ${pythonExec}`)
+      console.log(`🌐 地址: http://${BACKEND_HOST}:${PORT}`)
+      
       backendProcess = spawn(pythonExec, [
+        '-u',  // 无缓冲模式，确保输出实时性
         'server.py',
         '--port', PORT.toString(),
         '--host', BACKEND_HOST,
-      ], {...spawnOptions,
-      }
-    );
+      ], spawnOptions)
     } else {
-      // 生产模式
-      let serverExecutable = process.platform === 'win32' ? 'server.exe' : 'server'
+      // 生产模式代码...
+      const serverExecutable = process.platform === 'win32' ? 'server.exe' : 'server'
       const resourcesPath = process.resourcesPath || path.join(process.execPath, '..', 'resources')
       const exePath = path.join(resourcesPath, 'server', serverExecutable)
-      
-      console.log(`Starting backend from: ${exePath}`)
       
       backendProcess = spawn(exePath, [
         '--port', PORT.toString(),
         '--host', BACKEND_HOST,
       ], {
         ...spawnOptions,
-        cwd: path.dirname(exePath),
-        stdio: 'inherit', // 可选：让用户看到子进程输出
-        env:process.env
+        cwd: path.dirname(exePath)
       })
     }
 
-    // 简化日志处理
-    if (isDev) {
-      const logStream = fs.createWriteStream(
-        path.join(logDir, `backend-${Date.now()}.log`),
-        { flags: 'a' }
-      )
-      
-      backendProcess.stdout?.on('data', (data) => {
-        logStream.write(`[INFO] ${data}`)
-      })
-      
-      backendProcess.stderr?.on('data', (data) => {
-        logStream.write(`[ERROR] ${data}`)
+    // ★ 自定义日志处理 - 解决卡死问题的关键
+    if (backendProcess.stdout) {
+      backendProcess.stdout.setEncoding('utf8')
+      backendProcess.stdout.on('data', (data) => {
+        // 开发模式：实时显示在控制台
+        if (isDev) {
+          // 移除末尾换行符避免双换行
+          const output = data.toString().replace(/\r?\n$/, '')
+          if (output.trim()) {
+            console.log(`[后端] ${output}`)
+          }
+        } else {
+          // 生产模式：写入日志文件
+          if (!logStream) {
+            logStream = fs.createWriteStream(
+              path.join(logDir, `backend-${Date.now()}.log`),
+              { flags: 'a' }
+            )
+          }
+          logStream.write(`[STDOUT] ${new Date().toISOString()} ${data}`)
+        }
       })
     }
+
+    if (backendProcess.stderr) {
+      backendProcess.stderr.setEncoding('utf8')
+      backendProcess.stderr.on('data', (data) => {
+        if (isDev) {
+          const output = data.toString().replace(/\r?\n$/, '')
+          if (output.trim()) {
+            // 错误和警告用不同颜色显示
+            if (output.includes('WARNING') || output.includes('DeprecationWarning')) {
+              console.warn(`[后端警告] ${output}`)
+            } else {
+              console.error(`[后端错误] ${output}`)
+            }
+          }
+        } else {
+          if (!logStream) {
+            logStream = fs.createWriteStream(
+              path.join(logDir, `backend-${Date.now()}.log`),
+              { flags: 'a' }
+            )
+          }
+          logStream.write(`[STDERR] ${new Date().toISOString()} ${data}`)
+        }
+      })
+    }
+
+    // 进程事件处理
+    backendProcess.on('spawn', () => {
+      console.log('✅ 后端进程成功启动')
+    })
 
     backendProcess.on('error', (err) => {
-      console.error('Backend process error:', err)
+      console.error('❌ 后端进程错误:', err)
     })
 
-    backendProcess.on('close', (code) => {
-      console.log(`Backend process exited with code ${code}`)
+    backendProcess.on('close', (code, signal) => {
+      const message = signal 
+        ? `后端进程被信号 ${signal} 终止` 
+        : `后端进程退出，代码: ${code}`
+      
+      if (isDev || code !== 0) {
+        console.log(`🔄 ${message}`)
+      }
     })
 
-    return PORT // 返回实际使用的端口
+    // 优雅关闭处理
+    process.on('SIGINT', () => {
+      if (backendProcess && !backendProcess.killed) {
+        console.log('🛑 正在关闭后端进程...')
+        backendProcess.kill('SIGTERM')
+      }
+    })
+
+    process.on('SIGTERM', () => {
+      if (backendProcess && !backendProcess.killed) {
+        backendProcess.kill('SIGTERM')
+      }
+    })
+
+    return PORT
   } catch (error) {
-    console.error('启动后端服务失败:', error)
+    console.error('❌ 启动后端服务失败:', error)
     throw error
   }
 }
+
 
 
 
