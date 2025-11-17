@@ -389,7 +389,7 @@ let vue_data = {
       theme: 'light',
       network:"local",
       proxy: 'http://127.0.0.1:7890',
-      proxyEnabled: false,
+      proxyMode: 'system', //system or manual or none
     },
     networkOptions:[
       { value: 'local', label: 'local' }, 
