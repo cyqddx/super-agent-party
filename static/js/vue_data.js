@@ -531,6 +531,7 @@ let vue_data = {
       base_url: "",
       api_key: "",
       openaiVoice:"alloy",
+      openaiStream: false,
       openaiSpeed: 1.0,
       customTTSserver: "http://127.0.0.1:9880",
       customTTSspeaker: "",

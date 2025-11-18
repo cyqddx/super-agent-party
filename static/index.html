@@ -2307,6 +2307,12 @@ if ('serviceWorker' in navigator) {
                             ></el-option>
                           </el-select>
                         </el-form-item>
+                        <el-form-item :label="t('openaiStream')" class="form-item-align" label-position="left">
+                          <el-switch 
+                            v-model="ttsSettings.openaiStream" 
+                            @change="autoSaveSettings"
+                          ></el-switch>
+                        </el-form-item>
                         <!-- 提示音频选择框 -->
                         <el-form-item :label="t('gsvPromptAudio')" class="form-item-align">
                           <el-select
@@ -4589,6 +4595,12 @@ if ('serviceWorker' in navigator) {
                             :value="voice"
                           ></el-option>
                         </el-select>
+                      </el-form-item>
+                      <el-form-item :label="t('openaiStream')" class="form-item-align" label-position="left">
+                        <el-switch 
+                          v-model="ttsSettings.openaiStream" 
+                          @change="autoSaveSettings"
+                        ></el-switch>
                       </el-form-item>
                       <!-- 提示音频选择框 -->
                       <el-form-item :label="t('gsvPromptAudio')" class="form-item-align">

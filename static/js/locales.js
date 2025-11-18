@@ -1154,6 +1154,7 @@ key3`,
         "manualProxy": "手动代理",
         "noneProxy": "不使用代理",
         'logoPage': 'Logo页',
+        'openaiStream': '启用流式模式',
     },
     'en-US': {
         'chat': 'Chat',
@@ -2306,6 +2307,7 @@ Key3`,
         "systemProxy": "Follow system proxy",
         "manualProxy": "Manual proxy",
         "noneProxy": "No proxy",
-        'logoPage':'Logo Page'
+        'logoPage':'Logo Page',
+        'openaiStream': 'Enable Stream Mode',
     },
   };
