@@ -9650,7 +9650,9 @@ clearSegments() {
     this.sidePanelURL = '';
     this.showExtensionsDialog = false; // 关闭对话框
     this.currentExtension = extension;
-    this.messages[0].content = this.currentExtension.systemPrompt;
+    if (this.currentExtension.systemPrompt){
+      this.messages[0].content = this.currentExtension.systemPrompt;
+    }
     this.expandSidePanel();
     await this.loadExtension(extension);
   },
