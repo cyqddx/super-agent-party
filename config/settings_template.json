@@ -260,6 +260,7 @@
       "customTTSserver": "http://127.0.0.1:9880",
       "customTTSspeaker": "",
       "customTTSSpeed": 1.0,
+      "customStream": false,
       "newtts":{}
     },
     "largeMoreButtonDict":[

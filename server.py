@@ -4677,9 +4677,9 @@ async def text_to_speech(request: Request):
             tts_settings = tts_settings['newtts'][new_voice]
         index = data['index']
         tts_engine = tts_settings.get('engine', 'edgetts')
-        
+                
         print(f"TTS请求 - 引擎: {tts_engine}, 格式: {target_format}, 移动端优化: {mobile_optimized}")
-        
+                
         if tts_engine == 'edgetts':
             edgettsLanguage = tts_settings.get('edgettsLanguage', 'zh-CN')
             edgettsVoice = tts_settings.get('edgettsVoice', 'XiaoyiNeural')
@@ -4701,33 +4701,32 @@ async def text_to_speech(request: Request):
             async def generate_audio():
                 communicate = edge_tts.Communicate(text, full_voice_name, rate=rate_text)
                 
-                # 收集所有音频数据
-                audio_chunks = []
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        audio_chunks.append(chunk["data"])
-                
-                full_audio = b''.join(audio_chunks)
-                
-                # 如果需要opus格式，进行转换
                 if target_format == "opus":
+                    # 需要转换为opus，收集完整数据
+                    audio_chunks = []
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            audio_chunks.append(chunk["data"])
+                    
+                    full_audio = b''.join(audio_chunks)
                     opus_audio = await convert_to_opus_simple(full_audio)
-                    # 分块返回
+                    
+                    # 分块返回opus数据
                     chunk_size = 4096
                     for i in range(0, len(opus_audio), chunk_size):
                         yield opus_audio[i:i + chunk_size]
                 else:
-                    # 原始mp3格式
-                    chunk_size = 4096
-                    for i in range(0, len(full_audio), chunk_size):
-                        yield full_audio[i:i + chunk_size]
+                    # 真流式：直接返回mp3格式，不等待完整数据
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            yield chunk["data"]
             
             # 设置正确的媒体类型和文件名
             if target_format == "opus":
                 media_type = "audio/ogg"  # opus通常包装在ogg容器中
                 filename = f"tts_{index}.opus"
             else:
-                media_type = "audio/mpeg"
+                media_type = "audio/mpeg"  # EdgeTTS默认返回mp3
                 filename = f"tts_{index}.mp3"
             
             return StreamingResponse(
@@ -4739,7 +4738,7 @@ async def text_to_speech(request: Request):
                     "X-Audio-Format": target_format
                 }
             )
-            
+
         elif tts_engine == 'customTTS':
             # Custom TTS处理
             params = {
@@ -4755,39 +4754,59 @@ async def text_to_speech(request: Request):
             custom_tts_servers_list = [server for server in custom_tts_servers_list if server.strip()]
             custom_tt_server = custom_tts_servers_list[index % len(custom_tts_servers_list)]
             
+            # 获取流式配置
+            custom_streaming = tts_settings.get('customStream', False)
+            
             async def generate_audio():
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     try:
                         async with client.stream("GET", custom_tt_server, params=params) as response:
                             response.raise_for_status()
                             
-                            # 收集音频数据
-                            audio_chunks = []
-                            async for chunk in response.aiter_bytes():
-                                audio_chunks.append(chunk)
-                            
-                            full_audio = b''.join(audio_chunks)
-                            
-                            # 转换为opus
-                            if target_format == "opus":
-                                opus_audio = await convert_to_opus_simple(full_audio)
-                                chunk_size = 4096
-                                for i in range(0, len(opus_audio), chunk_size):
-                                    yield opus_audio[i:i + chunk_size]
+                            if custom_streaming:
+                                # 流式模式：直接返回数据，假设服务端能返回正确格式
+                                async for chunk in response.aiter_bytes():
+                                    yield chunk
                             else:
-                                chunk_size = 4096
-                                for i in range(0, len(full_audio), chunk_size):
-                                    yield full_audio[i:i + chunk_size]
-                                    
+                                # 非流式模式：收集完整数据，进行格式转换
+                                audio_chunks = []
+                                async for chunk in response.aiter_bytes():
+                                    audio_chunks.append(chunk)
+                                
+                                full_audio = b''.join(audio_chunks)
+                                
+                                # 转换为opus
+                                if target_format == "opus":
+                                    opus_audio = await convert_to_opus_simple(full_audio)
+                                    chunk_size = 4096
+                                    for i in range(0, len(opus_audio), chunk_size):
+                                        yield opus_audio[i:i + chunk_size]
+                                else:
+                                    chunk_size = 4096
+                                    for i in range(0, len(full_audio), chunk_size):
+                                        yield full_audio[i:i + chunk_size]
+                                        
                     except httpx.RequestError as e:
                         raise HTTPException(status_code=502, detail=f"Custom TTS 连接失败: {str(e)}")
 
-            if target_format == "opus":
-                media_type = "audio/ogg"
-                filename = f"tts_{index}.opus"
+            # 根据流式模式和目标格式设置媒体类型和文件名
+            if custom_streaming:
+                # 流式模式：假设返回的格式与目标格式一致
+                if target_format == "opus":
+                    media_type = "audio/ogg"
+                    filename = f"tts_{index}.opus"
+                else:
+                    # 默认假设是wav格式
+                    media_type = "audio/wav"
+                    filename = f"tts_{index}.wav"
             else:
-                media_type = "audio/wav"
-                filename = f"tts_{index}.wav"
+                # 非流式模式：保持原有逻辑
+                if target_format == "opus":
+                    media_type = "audio/ogg"
+                    filename = f"tts_{index}.opus"
+                else:
+                    media_type = "audio/wav"
+                    filename = f"tts_{index}.wav"
 
             return StreamingResponse(
                 generate_audio(),
@@ -4798,7 +4817,7 @@ async def text_to_speech(request: Request):
                     "X-Audio-Format": target_format
                 }
             )
-            
+
         elif tts_engine == 'GSV':
             # GSV生成ogg格式，检查是否可以直接作为opus使用
             audio_path = os.path.join(UPLOAD_FILES_DIR, tts_settings.get('gsvRefAudioPath', ''))

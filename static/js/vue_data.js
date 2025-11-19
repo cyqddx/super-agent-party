@@ -536,6 +536,7 @@ let vue_data = {
       customTTSserver: "http://127.0.0.1:9880",
       customTTSspeaker: "",
       customTTSspeed: 1.0,
+      customStream: false,
       newtts:{}
     },
     activeTTSTab: 'default', // 控制 TTS 标签页切换
