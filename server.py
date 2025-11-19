@@ -4883,11 +4883,15 @@ async def text_to_speech(request: Request):
                         base_url=openai_config['base_url']
                     )
                     
+                    # 根据目标格式设置response_format
+                    response_format = target_format if target_format in ['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm'] else 'mp3'
+                    
                     # 准备请求参数
                     request_params = {
                         'model': openai_config['model'],
                         'input': text,
-                        'speed': speed
+                        'speed': speed,
+                        'response_format': response_format
                     }
                     
                     # 处理参考音频
@@ -4906,38 +4910,17 @@ async def text_to_speech(request: Request):
                     else:
                         request_params['voice'] = openai_config['voice']
                     
-                    # 根据流式设置和目标格式选择不同的处理方式
-                    if openai_config['streaming'] and target_format != "opus":
-                        # 流式模式且不需要格式转换，直接流式返回
+                    # 根据流式设置选择调用方式
+                    if openai_config['streaming']:
+                        # 流式模式 - 真正的流式，无需格式转换
                         async with client.audio.speech.with_streaming_response.create(**request_params) as response:
                             async for chunk in response.iter_bytes(chunk_size=4096):
                                 yield chunk
                                 await asyncio.sleep(0)
-                    
-                    elif openai_config['streaming'] and target_format == "opus":
-                        # 流式模式但需要转换为opus，先收集数据再转换
-                        async with client.audio.speech.with_streaming_response.create(**request_params) as response:
-                            audio_chunks = []
-                            async for chunk in response.iter_bytes(chunk_size=4096):
-                                audio_chunks.append(chunk)
-                            
-                            content = b''.join(audio_chunks)
-                            opus_content = await convert_to_opus_simple(content)
-                            
-                            # 分块返回转换后的opus数据
-                            chunk_size = 4096
-                            for i in range(0, len(opus_content), chunk_size):
-                                yield opus_content[i:i + chunk_size]
-                                await asyncio.sleep(0)
-                    
                     else:
                         # 非流式模式
                         response = await client.audio.speech.create(**request_params)
                         content = await response.aread()
-                        
-                        # 转换为opus格式（如果需要）
-                        if target_format == "opus":
-                            content = await convert_to_opus_simple(content)
                         
                         # 分块返回
                         chunk_size = 4096
@@ -4948,10 +4931,20 @@ async def text_to_speech(request: Request):
                 except Exception as e:
                     raise HTTPException(status_code=500, detail=f"OpenAI TTS错误: {str(e)}")
             
+            # 根据目标格式设置媒体类型和文件名
             if target_format == "opus":
-                media_type = "audio/ogg"
+                media_type = "audio/ogg"  # opus通常用ogg容器
                 filename = f"tts_{index}.opus"
-            else:
+            elif target_format == "wav":
+                media_type = "audio/wav"
+                filename = f"tts_{index}.wav"
+            elif target_format == "aac":
+                media_type = "audio/aac"
+                filename = f"tts_{index}.aac"
+            elif target_format == "flac":
+                media_type = "audio/flac"
+                filename = f"tts_{index}.flac"
+            else:  # mp3 或其他
                 media_type = "audio/mpeg"
                 filename = f"tts_{index}.mp3"
             
@@ -4964,6 +4957,7 @@ async def text_to_speech(request: Request):
                     "X-Audio-Format": target_format
                 }
             )
+
 
         
         raise HTTPException(status_code=400, detail="不支持的TTS引擎")
