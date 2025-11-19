@@ -159,7 +159,7 @@ def _do_single_install(url: str, temp_dir: Path, target: Path):
     else:
         # git clone
         clone_dir = temp_dir / "repo"
-        url = url.rstrip("/").rstrip(".git")
+        url = url.rstrip("/").removesuffix(".git")
         subprocess.run(
             ["git", "clone", f"{url}.git", str(clone_dir)],
             check=True,
