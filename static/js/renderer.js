@@ -219,9 +219,9 @@ const app = Vue.createApp({
 
         // 完整的主题色映射
         const themeColors = {
-          light: '#409eff',      // 默认蓝色
-          dark: '#1668dc',       // 深蓝色
-          midnight: '#0ea5e9',   // 午夜蓝
+          light: '#21859c',      // 默认
+          dark: '#ee7e00',       // 橙色
+          midnight: '#21859c',   // 午夜蓝
           desert: '#d98236',     // 沙漠黄
           neon: '#ff2d95' ,       // 霓虹粉
           marshmallow: '#f5a5c3',  // Marshmallow 粉色

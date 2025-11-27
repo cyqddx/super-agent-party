@@ -13,10 +13,11 @@
   --border-color: #dcdfe6;
   
   /* Element Plus 核心变量 */
-  --el-color-primary: #409eff;
-  --el-color-primary-light-3: #79bbff;
-  --el-color-primary-light-5: #a0cfff;
-  --el-color-primary-light-7: #c6e2ff;
+  --el-color-primary: #1e849b;
+  --el-color-primary-light-3: #469bae;
+  --el-color-primary-light-5: #80becd;
+  --el-color-primary-light-7: #adced5;
+  --el-color-primary-light-9: #d2e7ea;
   --el-color-primary-rgb: 64, 158, 255 !important;
   
   --el-bg-color: var(--bg-color) !important;
@@ -66,11 +67,11 @@
   --bg-color: #1a1a1a;
   --text-color: #e5e7eb;
   --border-color: #434343;
-  --el-color-primary: #1668dc;
-  --el-color-primary-light-3: #2a7ae0;
-  --el-color-primary-light-5: #3d8ce4;
-  --el-color-primary-light-7: #519ee8;
-  --el-color-primary-light-9: #65b0ec;
+  --el-color-primary: #ee7e00;
+  --el-color-primary-light-3: #ec8e23;
+  --el-color-primary-light-5: #eba351;
+  --el-color-primary-light-7: #deb88b;
+  --el-color-primary-light-9: #e7dacb;
   --el-color-primary-rgb: 22, 104, 220 !important;
 
   --el-bg-color: var(--bg-color) !important;
@@ -87,7 +88,7 @@
   --el-tabs-bg-color: #1f1f1f !important;
   /* 状态颜色 */
   --el-color-success: #85ce61 !important;
-  --el-color-warning: #ebb563 !important;
+  --el-color-warning: #ebd263 !important;
   --el-color-danger: #f78989 !important;
   --el-color-info: #a1a3a8 !important;
   /* 文字颜色 */
@@ -119,10 +120,11 @@
   --border-color: #334155;     /* 中灰蓝色边框 */
 
   /* 主色调 - 青蓝色 */
-  --el-color-primary: #0ea5e9; /* 明亮青蓝色 */
-  --el-color-primary-light-3: #38bdf8;
-  --el-color-primary-light-5: #7dd3fc;
-  --el-color-primary-light-7: #bae6fd;
+  --el-color-primary: #ee7e00;
+  --el-color-primary-light-3: #ec8e23;
+  --el-color-primary-light-5: #eba351;
+  --el-color-primary-light-7: #deb88b;
+  --el-color-primary-light-9: #e7dacb;
   --el-color-primary-rgb: 14, 165, 233 !important;
   
   /* 背景系统 */
@@ -150,7 +152,7 @@
   
   /* 状态颜色 */
   --el-color-success: #22c55e !important;       /* 鲜绿色 */
-  --el-color-warning: #f59e0b !important;       /* 琥珀色 */
+  --el-color-warning: #ebd263 !important;
   --el-color-danger: #ef4444 !important;        /* 亮红色 */
   --el-color-info: #8b5cf6 !important;          /* 紫罗兰色 */
   
@@ -1274,11 +1276,7 @@ body {
 }
 
 .system .message-content {
-  background: linear-gradient(
-    to bottom right, /* 渐变方向：从左上到右下 */
-    var(--el-color-primary) 0%, 
-    var(--el-color-primary-light-5) 100%
-  );
+  background: var(--el-color-primary-light-5);
   border: 1px solid var(--el-border-color-light);
   color: #ffffff;
   border-radius: 12px;
@@ -4152,4 +4150,307 @@ body {
 /* 滚动条角落 (横竖滚动条交汇处) */
 .log-container::-webkit-scrollbar-corner {
   background: #1e1e1e;
+}
+
+:root {
+  /* 优化默认字体栈，使其在 Win/Mac 上都看起来原生 */
+  --el-font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  
+  /* 定义更柔和的通用阴影变量 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-glow: 0 0 15px rgba(var(--el-color-primary-rgb), 0.3);
+}
+
+body {
+  /* 优化抗锯齿渲染 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 滚动条美化 - 更加纤细现代 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgba(144, 147, 153, 0.3);
+  border-radius: 10px;
+  transition: background-color 0.3s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(144, 147, 153, 0.5);
+}
+
+.sidebar {
+  /* 磨砂玻璃效果 */
+  background-color: color-mix(in srgb, var(--el-bg-color-page) 85%, transparent) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-right: 1px solid rgba(128, 128, 128, 0.1) !important;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.02);
+}
+
+/* 菜单项优化 - 胶囊式选中态 */
+.el-menu {
+  border-right: none !important;
+  background: transparent !important;
+  padding: 8px;
+}
+
+.el-menu-item {
+  border-radius: 8px;
+  margin-bottom: 4px;
+  height: 44px;
+  line-height: 44px;
+  background: transparent !important; /* 默认透明 */
+}
+
+.el-menu-item:hover {
+  background-color: rgba(128, 128, 128, 0.08) !important;
+  transform: translateX(2px);
+}
+
+.el-menu-item.is-active {
+  background: linear-gradient(90deg, var(--el-color-primary-light-9), var(--el-bg-color)) !important;
+  color: var(--el-color-primary) !important;
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--el-color-primary); /* 左侧指示条 */
+}
+
+/* 暗黑模式适配 */
+[data-theme="dark"] .el-menu-item.is-active,
+[data-theme="midnight"] .el-menu-item.is-active {
+  background: rgba(var(--el-color-primary-rgb), 0.15) !important;
+}
+
+/* 聊天容器背景微纹理 (可选，增加质感) */
+.messages-container {
+  border: none !important;
+  box-shadow: none !important;
+  background-image: radial-gradient(var(--el-border-color-lighter) 1px, transparent 1px);
+  background-size: 30px 30px; /* 点阵背景 */
+}
+
+/* 消息气泡基础 */
+.message-content {
+  box-shadow: var(--shadow-sm) !important;
+  border: none !important;
+  line-height: 1.7;
+  letter-spacing: 0.3px;
+}
+
+/* 用户气泡 - 更鲜艳、去边框 */
+.user .message-content {
+  border-radius: 18px 18px 4px 18px !important; /* 右下角尖角 */
+  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-light-3)) !important;
+  box-shadow: 0 4px 12px rgba(var(--el-color-primary-rgb), 0.25) !important;
+}
+
+/* AI 气泡 - 纯净感 */
+.assistant .message-content {
+  border-radius: 18px 18px 18px 4px !important; /* 左下角尖角 */
+  background-color: var(--el-bg-color) !important;
+  border: 1px solid var(--el-border-color-lighter) !important;
+}
+
+/* 输入框区域 - 悬浮胶囊风格 */
+.input-container.expanded-input, 
+.chat-area .el-textarea__inner {
+  border-radius: 16px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 聚焦时的输入框 - 发光效果 */
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-5) inset, 0 4px 12px rgba(0,0,0,0.05) !important;
+  background-color: var(--el-bg-color) !important;
+}
+
+/* 通用卡片升级 */
+.provider-card, 
+.vendor-card, 
+.tool-item, 
+.file-item, 
+.knowledge-item,
+.extension-card {
+  border: 1px solid transparent !important; /* 默认隐藏边框 */
+  background: var(--el-bg-color) !important;
+  box-shadow: var(--shadow-sm) !important;
+  border-radius: 12px !important;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important; /* 弹性动画 */
+  position: relative;
+  overflow: hidden;
+}
+
+/* 悬停时的“上浮”效果 */
+.provider-card:hover, 
+.vendor-card:hover, 
+.tool-item:hover, 
+.file-item:hover,
+.knowledge-item:hover,
+.extension-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: var(--shadow-lg) !important;
+  border-color: var(--el-color-primary-light-8) !important;
+  z-index: 2;
+}
+
+/* 给卡片顶部增加一个装饰性的彩色条 (可选) */
+.provider-card::before,
+.extension-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--el-color-primary), var(--el-color-primary-light-5));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.provider-card:hover::before,
+.extension-card:hover::before {
+  opacity: 1;
+}
+
+/* 按钮圆角化 */
+.el-button {
+  border-radius: 8px !important;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* 主要按钮渐变增强 */
+.el-button--primary {
+  background: linear-gradient(145deg, var(--el-color-primary), var(--el-color-primary-light-3)) !important;
+  border: none !important;
+  box-shadow: 0 2px 6px rgba(var(--el-color-primary-rgb), 0.3);
+}
+
+.el-button--primary:hover {
+  background: linear-gradient(145deg, var(--el-color-primary-light-3), var(--el-color-primary)) !important;
+  box-shadow: 0 4px 12px rgba(var(--el-color-primary-rgb), 0.4);
+  transform: translateY(-1px);
+}
+
+.el-button--primary:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* 标签 (Tag) 样式优化 */
+.el-tag {
+  border-radius: 6px;
+  border: none !important;
+  font-weight: 500;
+}
+
+/* 开关 (Switch) 样式优化 */
+.el-switch__core {
+  border-radius: 16px !important;
+}
+.el-switch.is-checked .el-switch__core {
+  box-shadow: 0 0 8px rgba(var(--el-color-primary-rgb), 0.5);
+}
+
+.code-block {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(128, 128, 128, 0.15) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+  margin: 1.5em 0 !important;
+}
+
+.code-header {
+  background: #282c34 !important; /* 固定深色头，对比更强 */
+  padding: 10px 16px !important;
+}
+
+.code-lang {
+  color: #abb2bf !important;
+  font-weight: 600;
+  font-size: 0.85em;
+  text-transform: uppercase;
+}
+
+.copy-button, .preview-button {
+  background: rgba(255,255,255,0.1) !important;
+  color: #fff !important;
+  border-radius: 4px;
+}
+.copy-button:hover {
+  background: rgba(255,255,255,0.2) !important;
+}
+
+[data-theme="dark"] .el-bg-color,
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] .el-menu {
+  /* 避免纯黑，使用深灰蓝，护眼且高级 */
+  --bg-color: #121212; 
+}
+
+[data-theme="dark"] .provider-card,
+[data-theme="dark"] .message-content.assistant {
+  background-color: #1e1e1e !important;
+  border: 1px solid #333 !important;
+}
+
+[data-theme="dark"] .el-input__wrapper,
+[data-theme="dark"] .el-textarea__inner {
+  background-color: #181818 !important;
+  box-shadow: 0 0 0 1px #333 inset !important;
+}
+
+/* 1. 基础状态：强制使用主题定义的背景色 */
+.el-input__wrapper,
+.el-textarea__inner {
+  /* 关键修改：使用 var(--el-input-bg-color) 读取你在 :root 或 data-theme 中定义的颜色 */
+  background-color: var(--el-input-bg-color) !important;
+  
+  /* 边框：使用柔和的内阴影代替实线边框，颜色跟随主题 */
+  box-shadow: 0 0 0 1px var(--el-border-color) inset !important;
+  
+  /* 质感优化 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--el-input-text-color) !important;
+}
+
+/* 2. 悬停状态 (Hover) */
+.el-input__wrapper:hover,
+.el-textarea__inner:hover {
+  background-color: var(--el-input-bg-color) !important; /* 保持背景不变 */
+  box-shadow: 0 0 0 1px var(--el-input-hover-border-color) inset !important; /* 边框变色 */
+}
+
+/* 3. 聚焦状态 (Focus) */
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  /* 聚焦时背景色：稍微调亮一点，或者保持一致 */
+  background-color: var(--el-input-bg-color) !important;
+  
+  /* 聚焦光晕：主色调边框 + 轻微阴影 */
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset, 
+              0 0 0 1px var(--el-color-primary) inset,
+              0 4px 12px rgba(0,0,0,0.08) !important;
+}
+
+/* 4. 输入框圆角统一优化 (保持之前的胶囊风格) */
+.input-container.expanded-input, 
+.chat-area .el-textarea__inner,
+.el-input__wrapper {
+  border-radius: 12px !important; /* 稍微减小一点圆角，更适合桌面端 */
+}
+
+/* 5. 修复输入文字颜色 */
+.el-input__inner {
+  color: var(--el-input-text-color) !important;
+  /* 确保内部 input 标签本身背景透明，透出 wrapper 的颜色 */
+  background-color: transparent !important; 
 }
