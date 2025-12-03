@@ -531,7 +531,7 @@ async def dispatch_tool(tool_name: str, tool_params: dict,settings: dict) -> str
     from py.agent_tool import agent_tool_call
     from py.a2a_tool import a2a_tool_call
     from py.llm_tool import custom_llm_tool
-    from py.pollinations import pollinations_image,openai_image
+    from py.pollinations import pollinations_image,openai_image,openai_chat_image
     from py.load_files import get_file_content
     from py.code_interpreter import e2b_code_async,local_run_code_async
     from py.custom_http import fetch_custom_http
@@ -563,6 +563,7 @@ async def dispatch_tool(tool_name: str, tool_params: dict,settings: dict) -> str
         "e2b_code_async": e2b_code_async,
         "local_run_code_async": local_run_code_async,
         "openai_image": openai_image,
+        "openai_chat_image":openai_chat_image,
         "Bing_search_async": Bing_search_async,
         "Google_search_async": Google_search_async,
         "Brave_search_async": Brave_search_async,
@@ -964,7 +965,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
     from py.agent_tool import get_agent_tool
     from py.a2a_tool import get_a2a_tool
     from py.llm_tool import get_llm_tool
-    from py.pollinations import pollinations_image_tool,openai_image_tool
+    from py.pollinations import pollinations_image_tool,openai_image_tool,openai_chat_image_tool
     from py.code_interpreter import e2b_code_tool,local_run_code_tool
     from py.utility_tools import (
         time_tool, 
@@ -1076,6 +1077,8 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                 tools.append(pollinations_image_tool)
             elif settings['text2imgSettings']['engine'] == 'openai':
                 tools.append(openai_image_tool)
+            elif settings['text2imgSettings']['engine'] == 'openaiChat':
+                tools.append(openai_chat_image_tool)
         if settings['tools']['getFile']['enabled']:
             tools.append(file_tool)
             tools.append(image_tool)
@@ -2674,7 +2677,7 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
     from py.agent_tool import get_agent_tool
     from py.a2a_tool import get_a2a_tool
     from py.llm_tool import get_llm_tool
-    from py.pollinations import pollinations_image_tool,openai_image_tool
+    from py.pollinations import pollinations_image_tool,openai_image_tool,openai_chat_image_tool
     from py.code_interpreter import e2b_code_tool,local_run_code_tool
     from py.utility_tools import time_tool
     from py.utility_tools import (
@@ -2788,6 +2791,8 @@ async def generate_complete_response(client,reasoner_client, request: ChatReques
             tools.append(pollinations_image_tool)
         elif settings['text2imgSettings']['engine'] == 'openai':
             tools.append(openai_image_tool)
+        elif settings['text2imgSettings']['engine'] == 'openaiChat':
+            tools.append(openai_chat_image_tool)
     if settings['tools']['getFile']['enabled']:
         tools.append(file_tool)
         tools.append(image_tool)
