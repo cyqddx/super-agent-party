@@ -9,40 +9,42 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 # 假设您的应用中定义了一个默认的模型存储目录
-# 注意：这里使用的是 DEFAULT_ASR_DIR
-from py.get_setting import DEFAULT_ASR_DIR 
+from py.get_setting import DEFAULT_EBD_DIR 
 
-router = APIRouter(prefix="/sherpa-model")
+router = APIRouter(prefix="/minilm-model")
 
 # --- 模型配置 ---
-MODEL_NAME = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue"
-# Sherpa 运行时所需的关键文件列表
-REQUIRED_FILES = ["model.int8.onnx", "tokens.txt"] 
+# 模型的本地目录名称
+MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2" 
+# MiniLM 运行时所需的关键文件列表
+REQUIRED_FILES = ["model_O4.onnx", "tokenizer.json"] 
 
+# 假设的下载源
 MODELS = {
     "modelscope": {
-        "url": "https://modelscope.cn/models/pengzhendong/sherpa-onnx-sense-voice-zh-en-ja-ko-yue/resolve/master/model.int8.onnx",
-        "tokens_url": "https://modelscope.cn/models/pengzhendong/sherpa-onnx-sense-voice-zh-en-ja-ko-yue/resolve/master/tokens.txt",
+        # 使用更具描述性的键名 model_url 和 tokenizer_url
+        "model_url": "https://modelscope.cn/models/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/master/onnx/model_O4.onnx",
+        "tokenizer_url": "https://modelscope.cn/models/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/master/tokenizer.json",
         # 必须定义 files_to_download 列表供下载接口使用
         "files_to_download": [
-            {"filename": "model.int8.onnx", "url_key": "url", "progress_key": "model"},
-            {"filename": "tokens.txt", "url_key": "tokens_url", "progress_key": "tokens"},
+            {"filename": "model_O4.onnx", "url_key": "model_url", "progress_key": "model"},
+            {"filename": "tokenizer.json", "url_key": "tokenizer_url", "progress_key": "tokenizer"},
         ]
     },
     "huggingface": {
-        "url": "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/resolve/main/model.int8.onnx?download=true",
-        "tokens_url": "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/resolve/main/tokens.txt?download=true",
+        "model_url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/main/onnx/model_O4.onnx?download=true",
+        "tokenizer_url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/main/tokenizer.json?download=true",
         "files_to_download": [
-            {"filename": "model.int8.onnx", "url_key": "url", "progress_key": "model"},
-            {"filename": "tokens.txt", "url_key": "tokens_url", "progress_key": "tokens"},
+            {"filename": "model_O4.onnx", "url_key": "model_url", "progress_key": "model"},
+            {"filename": "tokenizer.json", "url_key": "tokenizer_url", "progress_key": "tokenizer"},
         ]
     }
 }
 
 # ---------- 工具函数 ----------
 def get_model_dir() -> Path:
-    """获取 Sherpa 模型在本地的完整路径"""
-    return Path(DEFAULT_ASR_DIR) / MODEL_NAME
+    """获取 MiniLM 模型在本地的完整路径"""
+    return Path(DEFAULT_EBD_DIR) / MODEL_NAME
 
 def model_exists() -> bool:
     """检查所有必需的模型文件是否存在"""
@@ -51,16 +53,12 @@ def model_exists() -> bool:
     return all((d / f).is_file() for f in REQUIRED_FILES)
 
 async def download_file(url: str, dest: Path, progress_id: str):
-    """
-    异步下载单个文件并记录进度 (使用 DEFAULT_ASR_DIR)。
-    所有文件写入操作都使用 aiofiles 保持异步。
-    """
+    """异步下载单个文件并记录进度"""
     tmp = dest.with_suffix(".downloading")
-    progress_file_path = Path(DEFAULT_ASR_DIR) / f"{progress_id}.json"
+    progress_file_path = Path(DEFAULT_EBD_DIR) / f"{progress_id}.json"
     
-    # 确保进度文件开始时存在 (异步写入)
-    async with aiofiles.open(progress_file_path, mode='w') as p_file:
-        await p_file.write(json.dumps({"done": 0, "total": 0}))
+    # 确保进度文件开始时存在，避免下载监听器抛出 FileNotFoundError
+    progress_file_path.write_text(json.dumps({"done": 0, "total": 0})) 
 
     try:
         async with httpx.AsyncClient(timeout=None, follow_redirects=True) as client:
@@ -72,26 +70,20 @@ async def download_file(url: str, dest: Path, progress_id: str):
                     async for chunk in resp.aiter_bytes(1024 * 64):
                         await f.write(chunk)
                         done += len(chunk)
-                        # 实时更新进度文件 (异步写入)
-                        async with aiofiles.open(progress_file_path, mode='w') as p_file:
-                            await p_file.write(
-                                json.dumps({"done": done, "total": total, "filename": dest.name})
-                            )
-        
-        # 将临时文件重命名为目标文件 (使用 asyncio.to_thread 处理同步的 Path.rename)
-        await asyncio.to_thread(tmp.rename, dest)
-
-        # 下载完成后，写入 complete 状态 (异步写入)
-        async with aiofiles.open(progress_file_path, mode='w') as p_file:
-            await p_file.write(
-                json.dumps({"done": done, "total": done, "filename": dest.name, "complete": True})
-            )
+                        # 实时更新进度文件
+                        progress_file_path.write_text(
+                            json.dumps({"done": done, "total": total, "filename": dest.name})
+                        )
+        tmp.rename(dest)
+        # 下载完成后，将 total 设置为 done，确保监听器能识别完成
+        progress_file_path.write_text(
+            json.dumps({"done": done, "total": done, "filename": dest.name, "complete": True})
+        )
     except Exception as e:
-        # 如果下载失败，记录错误信息 (异步写入)
-        async with aiofiles.open(progress_file_path, mode='w') as p_file:
-            await p_file.write(
-                json.dumps({"error": str(e), "filename": dest.name, "failed": True})
-            )
+        # 如果下载失败，记录错误信息
+        progress_file_path.write_text(
+            json.dumps({"error": str(e), "filename": dest.name, "failed": True})
+        )
     finally:
         # 在下载任务结束后，不管成功与否，保留进度文件直到移除
         pass 
@@ -100,25 +92,26 @@ async def download_file(url: str, dest: Path, progress_id: str):
 
 @router.get("/status")
 def status():
-    """检查 Sherpa 模型文件是否存在"""
+    """检查 MiniLM 模型文件是否存在"""
     return {"exists": model_exists(), "model": MODEL_NAME, "required_files": REQUIRED_FILES}
 
 @router.delete("/remove")
 def remove():
-    """移除本地的 Sherpa 模型目录"""
+    """移除本地的 MiniLM 模型目录"""
     import shutil
     d = get_model_dir()
     if d.exists():
         shutil.rmtree(d)
-    # 清理所有相关的进度文件 (使用 MODEL_NAME 前缀)
-    for f in Path(DEFAULT_ASR_DIR).glob(f"{MODEL_NAME}_*.json"):
+    # 清理所有相关的进度文件
+    for f in Path(DEFAULT_EBD_DIR).glob(f"{MODEL_NAME}_*.json"):
         f.unlink(missing_ok=True)
     return {"ok": True}
 
 @router.get("/download/{source}")
 async def download(source: str):
-    """从指定源异步下载 Sherpa 模型和分词器文件，并流式传输进度"""
+    """从指定源异步下载 MiniLM 模型和分词器文件，并流式传输进度"""
     if source not in MODELS:
+        # 更新错误信息，包含新的 sources
         allowed_sources = list(MODELS.keys())
         raise HTTPException(status_code=400, detail=f"Bad source: only {', '.join(allowed_sources)} is supported.")
     if model_exists():
@@ -149,7 +142,6 @@ async def download(source: str):
                 download_file(url, dest_path, task_id)
             )
         )
-        # 初始化 file_map 用于追踪状态
         file_map[progress_key] = {"id": task_id, "filename": filename, "done": 0, "total": 0, "complete": False, "failed": False}
 
 
@@ -162,7 +154,8 @@ async def download(source: str):
         def cleanup_progress_files():
             for key in file_map:
                 try:
-                    Path(DEFAULT_ASR_DIR / f"{file_map[key]['id']}.json").unlink(missing_ok=True)
+                    # 修复：使用 DEFAULT_EBD_DIR
+                    Path(DEFAULT_EBD_DIR / f"{file_map[key]['id']}.json").unlink(missing_ok=True)
                 except Exception as e:
                     print(f"Cleanup error for {file_map[key]['filename']}: {e}")
 
@@ -176,12 +169,10 @@ async def download(source: str):
                 # 遍历所有文件，读取各自的进度文件
                 for key in file_map:
                     file_info = file_map[key]
-                    progress_file_path = Path(DEFAULT_ASR_DIR) / f"{file_info['id']}.json"
+                    progress_file_path = Path(DEFAULT_EBD_DIR) / f"{file_info['id']}.json"
                     
                     try:
-                        # 尝试异步读取进度文件内容 (修复：使用 asyncio.to_thread 避免阻塞事件循环)
-                        file_content = await asyncio.to_thread(progress_file_path.read_text)
-                        data = json.loads(file_content)
+                        data = json.loads(progress_file_path.read_text())
                         
                         file_info.update({
                             "done": data.get("done", 0),
@@ -200,12 +191,9 @@ async def download(source: str):
                         # 任务可能刚开始，进度文件尚未创建
                         pass
                     except json.JSONDecodeError:
-                        # 进度文件可能正在写入中，忽略当前读取
+                        # 进度文件可能正在写入中
                         pass
-                    except Exception as e:
-                        # 捕获其他可能的线程池或文件系统错误
-                        print(f"Unexpected file read error for {file_info['filename']}: {e}")
-                        
+
                     current_progress["files"].append({
                         "filename": file_info["filename"],
                         "done": file_info["done"],

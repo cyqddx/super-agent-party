@@ -63,4 +63,6 @@ dependencies = [
     "imageio-ffmpeg>=0.6.0",
     "discord-py>=2.6.4",
     "pyinstaller>=6.17.0",
+    "onnxruntime>=1.23.2",
+    "transformers>=4.57.3",
 ]

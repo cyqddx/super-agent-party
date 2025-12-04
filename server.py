@@ -6844,6 +6844,12 @@ app.include_router(extensions_router)
 from py.sherpa_model_manager import router as sherpa_model_router
 app.include_router(sherpa_model_router)
 
+from py.ebd_model_manager import router as ebd_model_router
+app.include_router(ebd_model_router)
+
+from py.minilm_router import router as minilm_router
+app.include_router(minilm_router)
+
 from py.ebd_api import router as embedding_router
 app.include_router(embedding_router)
 

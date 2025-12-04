@@ -35,7 +35,8 @@ const app = Vue.createApp({
     await this.probeUv(); 
     await this.probeGit();
     this.checkMobile();
-    this.loadSherpaStatus()
+    this.loadSherpaStatus();
+    this.minilmModelStatus();
     window.addEventListener('resize', this.handleResize);
     if (isElectron) {
       this.checkServerPort();

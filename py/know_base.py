@@ -1,59 +1,94 @@
 import asyncio
-import httpx
-from tiktoken_ext import openai_public
-import tiktoken_ext
-from langchain_core.embeddings import Embeddings
-import requests
-import os
-if __name__ == "__main__":
-    from load_files import get_files_json
-    from get_setting import load_settings,base_path
-else:
-    from py.load_files import get_files_json
-    from py.get_setting import load_settings,base_path
-def get_tiktoken_cache_path():
-    cache_path = os.path.join(base_path, "tiktoken_cache")
-    os.makedirs(cache_path, exist_ok=True)
-    return cache_path
-
-# 在程序启动时设置环境变量
-os.environ["TIKTOKEN_CACHE_DIR"] = get_tiktoken_cache_path()
-
+import httpx # 核心修复：使用异步 HTTP 客户端
+from typing import List, Dict, Union
 import json
+import os
 from pathlib import Path
+from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
-from typing import List, Dict
 
-from langchain_core.documents import Document
-from py.get_setting import KB_DIR
+from py.load_files import get_files_json
+from py.get_setting import load_settings, base_path, KB_DIR
+    
+# --- Tiktoken 缓存设置（保留）---
+def get_tiktoken_cache_path():
+    cache_path = os.path.join(base_path, "tiktoken_cache")
+    os.makedirs(cache_path, exist_ok=True)
+    return cache_path
+
+os.environ["TIKTOKEN_CACHE_DIR"] = get_tiktoken_cache_path()
+# ---------------------------------
+
 
 class MyOpenAICompatibleEmbeddings(Embeddings):
+    """
+    OpenAI 兼容的词嵌入类，使用 httpx 异步客户端进行非阻塞网络请求。
+    """
     def __init__(self, base_url: str, model: str, api_key: str = "empty"):
         self.base_url = base_url
         self.model = model
         self.api_key = api_key
+        # 假设 base_url 已经是 http://127.0.0.1:8000/minilm
+        self.endpoint = f"{self.base_url}/embeddings"
 
+    # --- 异步核心方法 ---
+    async def _aembed(self, texts: Union[str, List[str]]) -> List[Dict]:
+        """异步发送嵌入请求并处理响应"""
+        
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        json_data = {"model": self.model, "input": texts}
+        
+        # 使用 httpx.AsyncClient 发送请求
+        # timeout=None 是为了避免在大型嵌入任务中请求超时
+        async with httpx.AsyncClient(timeout=None) as client:
+            try:
+                # 调用词嵌入接口
+                response = await client.post(self.endpoint, headers=headers, json=json_data)
+                
+                # 检查 HTTP 状态码，如果不是 2xx 则抛出异常
+                response.raise_for_status() 
+                
+                return response.json()["data"]
+                
+            except httpx.HTTPStatusError as e:
+                # 捕捉 HTTP 状态码错误 (例如 503 模型未加载)
+                detail = e.response.json().get('detail', e.response.text) if e.response.text else 'Unknown error'
+                raise RuntimeError(f"Embedding API HTTP Error {e.response.status_code}: {detail}")
+            except Exception as e:
+                # 捕捉连接错误
+                raise ConnectionError(f"Embedding API connection failed: {e.__class__.__name__}: {e}")
+
+    # --- LangChain 兼容的同步方法 ---
+    # 由于 LangChain 在构建向量库时会同步调用这些方法，我们必须在同步方法中运行异步核心。
+    
     def embed_query(self, text: str) -> List[float]:
-        response = requests.post(
-            f"{self.base_url}/embeddings",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json={"model": self.model, "input": text}
-        )
-        return response.json()["data"][0]["embedding"]
+        # 在同步方法中运行异步任务
+        # 注意: 这种做法可能在 LangChain 内部的多线程环境中有风险，但可以解决死锁问题。
+        data = asyncio.run(self.aembed_query(text))
+        return data
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        response = requests.post(
-            f"{self.base_url}/embeddings",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json={"model": self.model, "input": texts}
-        )
-        return [r["embedding"] for r in response.json()["data"]]
+        # 在同步方法中运行异步任务
+        data = asyncio.run(self.aembed_documents(texts))
+        return data
 
-def chunk_documents(results: List[Dict], cur_kb) -> List[Dict]:
+    # --- 暴露异步 LangChain 方法 (供内部调用) ---
+    # LangChain 的新版本倾向于使用这些异步方法。如果您的 LangChain 版本支持，可以直接调用它们。
+    
+    async def aembed_query(self, text: str) -> List[float]:
+        data = await self._aembed(text)
+        return data[0]["embedding"]
+
+    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+        data = await self._aembed(texts)
+        return [r["embedding"] for r in data]
+
+
+def chunk_documents(results: List[Dict], cur_kb) -> List[Document]:
     """为每个文件单独分块并添加元数据"""
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=cur_kb["chunk_size"],
@@ -70,77 +105,84 @@ def chunk_documents(results: List[Dict], cur_kb) -> List[Dict]:
                 metadata={
                     "file_path": doc["file_path"],
                     "file_name": doc["file_name"],
-                    "doc_id": f"{doc['file_path']}_{len(all_docs)}"  # 唯一标识
+                    "doc_id": f"{doc['file_path']}_{len(all_docs)}" 
                 }
             ))
     return all_docs
 
-def build_vector_store(docs: List[Document], kb_id, cur_kb: Dict, cur_vendor: str):
+# 核心修改：将 build_vector_store 改为异步函数，以便在内部调用 MyOpenAICompatibleEmbeddings 的异步方法
+async def build_vector_store(docs: List[Document], kb_id, cur_kb: Dict, cur_vendor: str):
     """构建并保存双索引（参数修正版）"""
-    # 参数校验
     if not isinstance(docs, list) or not all(isinstance(d, Document) for d in docs):
         raise ValueError("Input must be a list of Document objects")
     
-    # ========== BM25索引构建 ==========
+    # ========== BM25索引构建 (同步操作，但放在异步函数中，避免阻塞) ==========
     try:
-        kb_dir = Path(KB_DIR)  # 根目录
-        if not kb_dir.exists():
-            kb_dir.mkdir(parents=True, exist_ok=True)
-        
-        save_dir = kb_dir / str(kb_id)  # 知识库专属目录
-        save_dir.mkdir(parents=True, exist_ok=True)  # 确保目录存在
+        kb_dir = Path(KB_DIR)
+        kb_dir.mkdir(parents=True, exist_ok=True)
+        save_dir = kb_dir / str(kb_id)
+        save_dir.mkdir(parents=True, exist_ok=True)
 
         bm25_path = save_dir / "bm25_index.json"
         
-        # 写入前做空值检查
         if not docs:
             raise ValueError("Documents list is empty")
-        # 保存文档数据
-        with open(bm25_path, "w", encoding="utf-8") as f:
-            json.dump({
+            
+        # 使用 asyncio.to_thread 确保同步文件I/O不会阻塞事件循环
+        await asyncio.to_thread(
+            lambda: json.dump({
                 "docs": [
                     {
                         "page_content": doc.page_content,
                         "metadata": doc.metadata
                     } for doc in docs
                 ]
-            }, f, ensure_ascii=False)
+            }, open(bm25_path, "w", encoding="utf-8"), ensure_ascii=False)
+        )
     except Exception as e:
         raise RuntimeError(f"Failed to save BM25 index: {str(e)}")
-    # ========== 向量索引构建 ==========
+        
+    # ========== 向量索引构建 (使用异步客户端) ==========
     try:
         embeddings = MyOpenAICompatibleEmbeddings(
             model=cur_kb["model"],
             api_key=cur_kb["api_key"],
             base_url=cur_kb["base_url"],
         )
-        # 批量处理文档
-        batch_size = 5  # 根据显存调整
+        
+        # 批量处理文档，LangChain 的 FAISS.from_documents 和 add_documents 会调用 
+        # embeddings.embed_documents，该方法内部已通过 asyncio.run 适配
+        batch_size = 5 
         vector_db = None
         
         for i in range(0, len(docs), batch_size):
             batch = docs[i:i+batch_size]
             
+            # 由于 LangChain 的 FAISS 构造器是同步的，我们使用 asyncio.to_thread 来运行它
             if vector_db is None:
-                vector_db = FAISS.from_documents(batch, embeddings)
+                vector_db = await asyncio.to_thread(FAISS.from_documents, batch, embeddings)
             else:
-                vector_db.add_documents(batch)
+                await asyncio.to_thread(vector_db.add_documents, batch)
             
             print(f"Processed {min(i+batch_size, len(docs))}/{len(docs)} documents")
         
         # 最终保存
         save_path = Path(KB_DIR) / str(kb_id)
-        vector_db.save_local(folder_path=str(save_path), index_name="index")
+        # 确保保存操作也在线程中完成
+        await asyncio.to_thread(vector_db.save_local, folder_path=str(save_path), index_name="index")
         
     except Exception as e:
+        # 如果模型未加载，这里会捕获到 RuntimeError/ConnectionError
         raise RuntimeError(f"Vector store build failed: {str(e)}")
 
-def load_retrievers(kb_id, cur_kb, cur_vendor):
+
+async def load_retrievers(kb_id, cur_kb, cur_vendor):
     """加载双检索器"""
     # 加载BM25
     bm25_path = Path(KB_DIR) / str(kb_id) / "bm25_index.json"
-    with open(bm25_path, "r", encoding="utf-8") as f:
-        bm25_data = json.load(f)
+    
+    # 异步读取文件
+    bm25_data = await asyncio.to_thread(json.load, open(bm25_path, "r", encoding="utf-8"))
     
     bm25_docs = [
         Document(
@@ -148,8 +190,10 @@ def load_retrievers(kb_id, cur_kb, cur_vendor):
             metadata=doc["metadata"]
         ) for doc in bm25_data["docs"]
     ]
-    bm25_retriever = BM25Retriever.from_documents(bm25_docs)
+    # BM25Retriever 构造器是同步的
+    bm25_retriever = await asyncio.to_thread(BM25Retriever.from_documents, bm25_docs)
     bm25_retriever.k = cur_kb["chunk_k"]
+    
     # 加载向量检索器
     kb_path = Path(KB_DIR) / str(kb_id)
     embeddings = MyOpenAICompatibleEmbeddings(
@@ -158,30 +202,33 @@ def load_retrievers(kb_id, cur_kb, cur_vendor):
         base_url=cur_kb["base_url"],
     )
     
-    vector_db = FAISS.load_local(
+    # FAISS.load_local 是同步的，内部会调用 embed_query
+    vector_db = await asyncio.to_thread(
+        FAISS.load_local,
         folder_path=str(kb_path),
         embeddings=embeddings,
         allow_dangerous_deserialization=True,
-        index_name="index"  # 与保存时的默认名称一致
+        index_name="index"
     )
     vector_retriever = vector_db.as_retriever(
         search_kwargs={"k": cur_kb["chunk_k"]}
     )
     return bm25_retriever, vector_retriever
 
-def query_vector_store(query: str, kb_id, cur_kb, cur_vendor):
+async def query_vector_store(query: str, kb_id, cur_kb, cur_vendor):
     """使用EnsembleRetriever的混合查询"""
-    bm25_retriever, vector_retriever = load_retrievers(kb_id, cur_kb, cur_vendor)
+    bm25_retriever, vector_retriever = await load_retrievers(kb_id, cur_kb, cur_vendor)
     if "weight" not in cur_kb:
         cur_kb["weight"] = 0.5
-    # 初始化混合检索器
+        
     ensemble_retriever = EnsembleRetriever(
         retrievers=[bm25_retriever, vector_retriever],
-        weights=[1 - cur_kb["weight"], cur_kb["weight"]],  # 权重配置
+        weights=[1 - cur_kb["weight"], cur_kb["weight"]],
     )
     
-    # 获取结果
-    docs = ensemble_retriever.invoke(query)
+    # EnsembleRetriever.invoke 是同步阻塞的，需要放在线程中运行
+    docs = await asyncio.to_thread(ensemble_retriever.invoke, query)
+    
     # 格式转换
     return [{
         "content": doc.page_content,
@@ -191,9 +238,7 @@ def query_vector_store(query: str, kb_id, cur_kb, cur_vendor):
 
 async def process_knowledge_base(kb_id):
     """异步处理知识库的完整流程"""
-    # 加载配置
     settings = await load_settings()
-    # 查找对应知识库配置
     cur_kb = None
     providerId = None
     for kb in settings["knowledgeBases"]:
@@ -209,22 +254,19 @@ async def process_knowledge_base(kb_id):
     
     if not cur_kb:
         raise ValueError(f"Knowledge base {kb_id} not found in settings")
-    # 异步获取文件处理结果
+        
     processed_results = await get_files_json(cur_kb["files"])
     
-    # 分块处理文档
     chunks = chunk_documents(processed_results, cur_kb)
     
-    # 构建向量存储
-    build_vector_store(chunks, kb_id, cur_kb,cur_vendor)
+    # 调用异步版本的 build_vector_store
+    await build_vector_store(chunks, kb_id, cur_kb, cur_vendor)
 
     return "知识库处理完成"
 
 async def query_knowledge_base(kb_id, query: str):
     """查询知识库"""
-    # 加载配置
     settings = await load_settings()
-    # 查找对应知识库配置
     cur_kb = None
     providerId = None
     for kb in settings["knowledgeBases"]:
@@ -240,8 +282,9 @@ async def query_knowledge_base(kb_id, query: str):
     
     if not cur_kb:
         return f"Knowledge base {kb_id} not found in settings"
-    # 查询知识库
-    results = query_vector_store(query,kb_id, cur_kb,cur_vendor)
+        
+    # 调用异步版本的 query_vector_store
+    results = await query_vector_store(query, kb_id, cur_kb, cur_vendor)
     return results
 
 async def rerank_knowledge_base(query: str , docs: List[Dict]) -> List[Dict]:
@@ -253,15 +296,10 @@ async def rerank_knowledge_base(query: str , docs: List[Dict]) -> List[Dict]:
             cur_vendor = provider["vendor"]
             break
     if cur_vendor == "jina":
-        # 获取设置中的模型和参数（可从配置中扩展）
         jina_api_key = settings["KBSettings"]["api_key"]
         model_name = settings["KBSettings"]["model"]
         top_n = settings["KBSettings"]["top_n"]
-
-        # 构建 documents 列表
         documents = [doc.get("content", "") for doc in docs]
-
-        # 构建请求数据
         url = settings["KBSettings"]["base_url"] + "/rerank"
         headers = {
             "Content-Type": "application/json",
@@ -274,30 +312,18 @@ async def rerank_knowledge_base(query: str , docs: List[Dict]) -> List[Dict]:
             "documents": documents,
             "return_documents": False
         }
-
-        # 发送请求
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=headers, json=data)
-        
         if response.status_code != 200:
             raise Exception(f"Jina reranking failed: {response.text}")
-
         result = response.json()
-
-        # 提取 rerank 后的顺序
         ranked_indices = [item['index'] for item in result.get('results', [])]
         ranked_docs = [docs[i] for i in ranked_indices]
-
         return ranked_docs
     elif cur_vendor == "Vllm":
-        # 获取设置中的模型和参数（可从配置中扩展）
         model_name = settings["KBSettings"]["model"]
         top_n = settings["KBSettings"]["top_n"]
-
-        # 构建 documents 列表
         documents = [doc.get("content", "") for doc in docs]
-
-        # 构建请求数据
         url = settings["KBSettings"]["base_url"] + "/rerank"
         headers = {"accept": "application/json", "Content-Type": "application/json"}
         data = {
@@ -306,20 +332,13 @@ async def rerank_knowledge_base(query: str , docs: List[Dict]) -> List[Dict]:
             "top_n": top_n,
             "documents": documents,
         }
-
-        # 发送请求
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=headers, json=data)
-        
         if response.status_code != 200:
             raise Exception(f"Vllm reranking failed: {response.text}")
-
         result = response.json()
-
-        # 提取 rerank 后的顺序
         ranked_indices = [item['index'] for item in result.get('results', [])]
         ranked_docs = [docs[i] for i in ranked_indices]
-
         return ranked_docs
     else:
         return docs
@@ -345,24 +364,3 @@ kb_tool = {
         },
     },
 }
-
-async def main():
-    """示例用法"""
-    try:
-        # 示例参数
-        kb_id = 1744547848224
-        test_query = "什么是LLM party？"
-        
-        # 处理知识库并获取结果
-        await process_knowledge_base(kb_id)
-        results = await query_knowledge_base(kb_id, test_query)
-
-        # 打印结果
-        print(results)
-
-        return results
-    except Exception as e:
-        print(f"处理过程中发生错误: {str(e)}")
-        raise
-if __name__ == "__main__":
-    asyncio.run(main())

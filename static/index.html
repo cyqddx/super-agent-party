@@ -1609,6 +1609,86 @@ if ('serviceWorker' in navigator) {
                           </el-form-item>
                         </div>
                       </div>
+                      <el-alert
+                        type="info"
+                        :closable="false"
+                        class="mb-2"
+                      >
+                        <template #default>
+                          <div class="alert-content">
+                            {{ t('minilmNotice3') }}
+                          </div>
+                        </template>
+                      </el-alert>
+                      <!-- Minilm ONNX 卡片 -->
+                      <el-card
+                        shadow="hover"
+                        class="sherpa-card"
+                      >
+                        <!-- 卡片头部：标题 + 安装状态 -->
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                          <!-- 左侧标题 -->
+                          <span><strong>Paraphrase Multilingual MiniLM L12 v2</strong></span>
+
+                          <!-- 右侧 tag 组 -->
+                          <div class="d-flex gap-2">
+                            <el-tag type="info" effect="dark">
+                              224MB
+                            </el-tag>
+
+                            <el-tag
+                              :type="minilmModelExists ? 'success' : 'info'"
+                              effect="dark"
+                            >
+                              {{ minilmModelExists ? t('installed') : t('notInstalled') }}
+                            </el-tag>
+                          </div>
+                        </div>
+
+
+                        <!-- 操作按钮区 -->
+                        <div class="card-actions">
+                          <!-- 左侧：两个下载按钮 -->
+                          <div class="left-actions">
+                            <el-button
+                              type="primary"
+                              :disabled="minilmModelExists || minilmDownloading"
+                              :loading="minilmDownloading && source==='modelscope'"
+                              @click="minilmDownload('modelscope')"
+                            >
+                              {{ t('downloadFromModelScope') }}
+                            </el-button>
+
+                            <el-button
+                              type="primary"
+                              :style="{ margin: '0' }"
+                              :disabled="minilmModelExists || minilmDownloading"
+                              :loading="minilmDownloading && source==='huggingface'"
+                              @click="minilmDownload('huggingface')"
+                            >
+                              {{ t('downloadFromHuggingFace') }}
+                            </el-button>
+                          </div>
+
+                          <!-- 右侧：删除按钮 -->
+                          <el-button
+                            v-if="minilmModelExists"
+                            type="danger"
+                            @click="minilmRemove"
+                          >
+                            {{ t('deleteModel') }}
+                          </el-button>
+                        </div>
+
+
+                        <!-- 进度条（固定在底部） -->
+                        <el-progress
+                          v-if="minilmDownloading"
+                          :percentage="minilmPercent"
+                          style="margin-top: 16px;"
+                          :stroke-width="10"
+                        ></el-progress>
+                      </el-card>
                     </el-form>
                   </el-tab-pane>
                   <!-- 添加新记忆标签页 -->
@@ -1840,6 +1920,19 @@ if ('serviceWorker' in navigator) {
                                   </div>
                                 </el-option>
                                 <el-option
+                                  key='paraphrase-multilingual-MiniLM-L12-v2'
+                                  :label="t('localVendor') + ' - ' + 'paraphrase-multilingual-MiniLM-L12-v2'"
+                                  value='paraphrase-multilingual-MiniLM-L12-v2'
+                                >
+                                  <div class="provider-option">
+                                    <img 
+                                      :src="getVendorLogo('Local')" 
+                                      class="mini-vendor-logo"
+                                    />
+                                    <span class="model-id">paraphrase-multilingual-MiniLM-L12-v2</span>
+                                  </div>
+                                </el-option>
+                                <el-option
                                   v-for="p in modelProviders"
                                   :key="p.id"
                                   :label="p.vendor + ' - ' + p.modelId"
@@ -1855,6 +1948,17 @@ if ('serviceWorker' in navigator) {
                             <el-alert type="info" :closable="false" class="mb-2">
                               <template #default>
                                 <div class="alert-content">
+                                  {{ t('minilmNotice4') }}
+                                  <el-link
+                                    type="primary"
+                                    :underline="false"
+                                    class="font-medium"
+                                    @click="switchToMemoryConfig"
+                                  >
+                                    <el-icon class="mr-1">
+                                      <i class="fa-solid fa-key"></i>
+                                    </el-icon>{{ t('goToMemory') }}
+                                  </el-link><br>
                                   {{ t('firstTimeUse') }}
                                   <el-link
                                     type="primary"
@@ -6518,6 +6622,86 @@ if ('serviceWorker' in navigator) {
                           </el-alert>
                         </div>
                       </div>
+                      <el-alert
+                        type="info"
+                        :closable="false"
+                        class="mb-2"
+                      >
+                        <template #default>
+                          <div class="alert-content">
+                            {{ t('minilmNotice') }}
+                          </div>
+                        </template>
+                      </el-alert>
+                      <!-- Minilm ONNX 卡片 -->
+                      <el-card
+                        shadow="hover"
+                        class="sherpa-card"
+                      >
+                        <!-- 卡片头部：标题 + 安装状态 -->
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                          <!-- 左侧标题 -->
+                          <span><strong>Paraphrase Multilingual MiniLM L12 v2</strong></span>
+
+                          <!-- 右侧 tag 组 -->
+                          <div class="d-flex gap-2">
+                            <el-tag type="info" effect="dark">
+                              224MB
+                            </el-tag>
+
+                            <el-tag
+                              :type="minilmModelExists ? 'success' : 'info'"
+                              effect="dark"
+                            >
+                              {{ minilmModelExists ? t('installed') : t('notInstalled') }}
+                            </el-tag>
+                          </div>
+                        </div>
+
+
+                        <!-- 操作按钮区 -->
+                        <div class="card-actions">
+                          <!-- 左侧：两个下载按钮 -->
+                          <div class="left-actions">
+                            <el-button
+                              type="primary"
+                              :disabled="minilmModelExists || minilmDownloading"
+                              :loading="minilmDownloading && source==='modelscope'"
+                              @click="minilmDownload('modelscope')"
+                            >
+                              {{ t('downloadFromModelScope') }}
+                            </el-button>
+
+                            <el-button
+                              type="primary"
+                              :style="{ margin: '0' }"
+                              :disabled="minilmModelExists || minilmDownloading"
+                              :loading="minilmDownloading && source==='huggingface'"
+                              @click="minilmDownload('huggingface')"
+                            >
+                              {{ t('downloadFromHuggingFace') }}
+                            </el-button>
+                          </div>
+
+                          <!-- 右侧：删除按钮 -->
+                          <el-button
+                            v-if="minilmModelExists"
+                            type="danger"
+                            @click="minilmRemove"
+                          >
+                            {{ t('deleteModel') }}
+                          </el-button>
+                        </div>
+
+
+                        <!-- 进度条（固定在底部） -->
+                        <el-progress
+                          v-if="minilmDownloading"
+                          :percentage="minilmPercent"
+                          style="margin-top: 16px;"
+                          :stroke-width="10"
+                        ></el-progress>
+                      </el-card>
                     </el-form>
                   </el-tab-pane>
                   <el-tab-pane :label="t('addKnowledgeBase')" name="add">
@@ -6587,7 +6771,7 @@ if ('serviceWorker' in navigator) {
                     <el-dialog
                       v-model="showAddKbDialog"
                       :title="t('addNewKnowledgeBase')"
-                      width="600px"
+                      width="80%"
                       @closed="() => {
                         newKb = {
                           name: '',
@@ -6621,6 +6805,19 @@ if ('serviceWorker' in navigator) {
                             class="full-width-input"
                           >
                             <el-option
+                              key='paraphrase-multilingual-MiniLM-L12-v2'
+                              :label="t('localVendor') + ' - ' + 'paraphrase-multilingual-MiniLM-L12-v2'"
+                              value='paraphrase-multilingual-MiniLM-L12-v2'
+                            >
+                              <div class="provider-option">
+                                <img 
+                                  :src="getVendorLogo('Local')" 
+                                  class="mini-vendor-logo"
+                                />
+                                <span class="model-id">paraphrase-multilingual-MiniLM-L12-v2</span>
+                              </div>
+                            </el-option>
+                            <el-option
                               v-for="provider in modelProviders"
                               :key="provider.id"
                               :label="provider.vendor+' - '+provider.modelId"
@@ -6639,6 +6836,17 @@ if ('serviceWorker' in navigator) {
                         <el-alert type="info" :closable="false" class="mb-2">
                           <template #default>
                             <div class="alert-content">
+                              {{ t('minilmNotice2') }}
+                              <el-link
+                                type="primary"
+                                :underline="false"
+                                class="font-medium"
+                                @click="switchToKnowledgeConfig"
+                              >
+                                <el-icon class="mr-1">
+                                  <i class="fa-solid fa-key"></i>
+                                </el-icon>{{ t('goToKnowledgeBase') }}
+                              </el-link><br>
                               {{ t('firstTimeUse') }}
                               <el-link
                                 type="primary"

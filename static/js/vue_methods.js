@@ -2972,6 +2972,13 @@ let vue_methods = {
     },
     // 选择供应商
     selectKbProvider(providerId) {
+      if (providerId == 'paraphrase-multilingual-MiniLM-L12-v2'){
+        this.newKb.model = providerId;
+        this.newKb.base_url = `${backendURL}/minilm`
+        this.newKb.api_key = 'MiniLM';
+        return;
+      }
+
       const provider = this.modelProviders.find(p => p.id === providerId);
       if (provider) {
         this.newKb.model = provider.modelId;
@@ -3044,6 +3051,18 @@ let vue_methods = {
     switchToKnowledgePage() {
       this.activeMenu = 'toolkit';  // 根据你的菜单项配置的实际值设置
       this.subMenu = 'document';   // 根据你的子菜单项配置的实际值设置
+    },
+    switchToKnowledgeConfig(){
+      this.activeMenu = 'toolkit';  // 根据你的菜单项配置的实际值设置
+      this.subMenu = 'document';   // 根据你的子菜单项配置的实际值设置
+      this.activeKbTab='settings';
+      this.showAddKbDialog=false;
+    },
+    switchToMemoryConfig(){
+      this.activeMenu = 'role';  // 根据你的菜单项配置的实际值设置
+      this.subMenu = 'memory';   // 根据你的子菜单项配置的实际值设置
+      this.activeMemoryTab='config';
+      this.showAddMemoryDialog=false;
     },
     switchToMemory(){
       this.activeMenu = 'role';
@@ -3633,6 +3652,13 @@ let vue_methods = {
     },
 
     selectMemoryProvider(providerId) {
+      if (providerId == 'paraphrase-multilingual-MiniLM-L12-v2'){
+        this.newMemory.model = providerId;
+        this.newMemory.base_url = `${backendURL}/minilm`
+        this.newMemory.api_key = 'MiniLM';
+        return;
+      }
+
       const provider = this.modelProviders.find(p => p.id === providerId);
       if (provider) {
         this.newMemory.model = provider.modelId;
@@ -3712,44 +3738,45 @@ let vue_methods = {
         this.memories.splice(insertIdx, 1, memory);
       }
       this.showAddMemoryDialog = false;
+      if (this.newMemory.providerId != null){
+        /* ---- 2. 异步探测维度（失败则回滚） ---- */
+        try {
+          const resp = await fetch('/api/embedding_dims', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key:  this.newMemory.api_key,
+              base_url: this.newMemory.base_url,
+              model:    this.newMemory.model
+            })
+          });
 
-      /* ---- 2. 异步探测维度（失败则回滚） ---- */
-      try {
-        const resp = await fetch('/api/embedding_dims', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            api_key:  this.newMemory.api_key,
-            base_url: this.newMemory.base_url,
-            model:    this.newMemory.model
-          })
-        });
-
-        // ******** 关键点 ********
-        if (!resp.ok) {                           // 4xx/5xx 都进这里
-          const txt = await resp.text();
-          throw new Error(`Embedding 接口异常 ${resp.status}: ${txt}`);
-        }
-
-        const { dims } = await resp.json();
-        memory.embedding_dims = dims;
-        await this.autoSaveSettings();          // 真正落盘
-      } catch (e) {
-        /* ---- 3. 回滚 & 提示 ---- */
-        if (this.newMemory.id === null) {
-          // 新增：直接 pop
-          this.memories.pop();
-          if (this.memorySettings.selectedMemory === memory.id) {
-            this.memorySettings.selectedMemory = null;
+          // ******** 关键点 ********
+          if (!resp.ok) {                           // 4xx/5xx 都进这里
+            const txt = await resp.text();
+            throw new Error(`Embedding 接口异常 ${resp.status}: ${txt}`);
           }
-        } else {
-          // 更新：把旧记忆写回去
-          if (oldMemory) this.memories.splice(insertIdx, 1, oldMemory);
+
+          const { dims } = await resp.json();
+          memory.embedding_dims = dims;
+          await this.autoSaveSettings();          // 真正落盘
+        } catch (e) {
+          /* ---- 3. 回滚 & 提示 ---- */
+          if (this.newMemory.id === null) {
+            // 新增：直接 pop
+            this.memories.pop();
+            if (this.memorySettings.selectedMemory === memory.id) {
+              this.memorySettings.selectedMemory = null;
+            }
+          } else {
+            // 更新：把旧记忆写回去
+            if (oldMemory) this.memories.splice(insertIdx, 1, oldMemory);
+          }
+          // 保证能拿到 t 函数
+          showNotification(this.t('EmbeddingFailed'), 'error');
+          console.error('[addMemory] 探测维度失败', e);
+          return;   // 不再继续
         }
-        // 保证能拿到 t 函数
-        showNotification(this.t('EmbeddingFailed'), 'error');
-        console.error('[addMemory] 探测维度失败', e);
-        return;   // 不再继续
       }
 
       /* ---- 4. 收尾 ---- */
@@ -3793,6 +3820,9 @@ let vue_methods = {
 
     
     getVendorName(providerId) {
+      if (providerId == 'paraphrase-multilingual-MiniLM-L12-v2'){
+        return `${this.t("model")}:${providerId}`;
+      }
       const provider = this.modelProviders.find(p => p.id === providerId);
       return provider ? `${this.t("model")}:${provider.modelId}` : this.t("NoLongTermMemory");
     },
@@ -10219,28 +10249,76 @@ clearSegments() {
   },
 
   async sherpaDownload(source = 'modelscope') {
-    if (this.sherpaEventSource) this.sherpaEventSource.close()
-    this.sherpaDownloading = true
-    this.sherpaPercent = 0
-    const es = new EventSource(`/sherpa-model/download/${source}`)
-    this.sherpaEventSource = es
-    es.onmessage = e => {
-      if (e.data === 'close') {
-        es.close()
-        this.sherpaDownloading = false
-        this.sherpaPercent = 100
-        this.sherpaModelStatus()
-        showNotification(this.t('modelDownloadSuccess'))
-        return
+      if (this.sherpaEventSource) this.sherpaEventSource.close()
+      this.sherpaDownloading = true
+      this.sherpaPercent = 0
+      
+      // 确保在 EventSource 实例化之前设置状态
+      this.sherpaEventSource = null
+
+      const es = new EventSource(`/sherpa-model/download/${source}`)
+      this.sherpaEventSource = es
+      
+      // 监听消息流
+      es.onmessage = e => {
+          let data
+          try {
+              data = JSON.parse(e.data)
+          } catch (error) {
+              console.error('Failed to parse download progress data:', e.data, error)
+              return
+          }
+
+          // --------------------------------------
+          // 核心修复逻辑：处理多文件聚合进度
+          // --------------------------------------
+          
+          // 1. 检查下载是否完成或失败
+          if (data.status === 'complete') {
+              es.close()
+              this.sherpaDownloading = false
+              this.sherpaPercent = 100
+              this.sherpaModelStatus()
+              showNotification(this.t('modelDownloadSuccess'))
+              return
+          }
+
+          if (data.status === 'failed') {
+              es.close()
+              this.sherpaDownloading = false
+              showNotification(this.t('modelDownloadFailed') + (data.error || ''), 'error')
+              return
+          }
+
+          // 2. 聚合所有文件的进度
+          let totalDone = 0
+          let grandTotal = 0
+
+          if (data.files && data.files.length > 0) {
+              data.files.forEach(file => {
+                  totalDone += file.done || 0
+                  grandTotal += file.total || 0
+                  // 检查是否有任何单个文件失败
+                  if (file.failed) {
+                      es.close()
+                      this.sherpaDownloading = false
+                      showNotification(this.t('modelDownloadFailed') + `: ${file.filename} 失败`, 'error')
+                  }
+              })
+          }
+
+          // 3. 计算整体百分比
+          this.sherpaPercent = grandTotal > 0 ? Math.round((totalDone / grandTotal) * 100) : 0
       }
-      const { done, total } = JSON.parse(e.data)
-      this.sherpaPercent = total ? Math.round((done / total) * 100) : 0
-    }
-    es.onerror = () => {
-      es.close()
-      this.sherpaDownloading = false
-      showNotification(this.t('modelDownloadFailed'), 'error')
-    }
+      
+      // 监听错误
+      es.onerror = () => {
+          // 如果 EventSource 在没有收到 close 消息的情况下关闭，通常意味着错误
+          es.close()
+          this.sherpaDownloading = false
+          showNotification(this.t('modelDownloadFailed'), 'error')
+          this.sherpaModelStatus() // 再次检查状态，以防实际已下载完成
+      }
   },
 
   async sherpaRemove() {
@@ -10257,6 +10335,143 @@ clearSegments() {
   async loadSherpaStatus() {
     await this.sherpaModelStatus()
   },
+
+    /**
+     * 检查 MiniLM 模型状态 (是否存在)
+     */
+    async minilmModelStatus() {
+        try {
+            const res = await fetch('/minilm-model/status');
+            if (!res.ok) throw new Error('Failed to fetch status');
+            const data = await res.json();
+            this.minilmModelExists = data.exists;
+        } catch (error) {
+            console.error("Error checking MiniLM model status:", error);
+            this.minilmModelExists = false; // 假设网络错误导致无法检查，也视为不存在
+        }
+    },
+
+    /**
+     * 下载 MiniLM 模型
+     * @param {string} source - 下载源: 'modelscope' 或 'huggingface'
+     */
+    async minilmDownload(source = 'modelscope') {
+        if (this.minilmEventSource) this.minilmEventSource.close();
+        
+        this.minilmDownloading = true;
+        this.minilmPercent = 0;
+        this.minilmEventSource = null;
+
+        const es = new EventSource(`/minilm-model/download/${source}`);
+        this.minilmEventSource = es;
+        
+        // 监听消息流
+        es.onmessage = e => {
+            let data;
+            try {
+                // 后端会发送 JSON 格式的进度数据
+                data = JSON.parse(e.data);
+            } catch (error) {
+                // 后端可能会发送 'close' 这样的非 JSON 消息
+                if (e.data === 'close') {
+                    es.close();
+                }
+                console.error('Failed to parse download progress data:', e.data, error);
+                return;
+            }
+
+            // 1. 检查下载是否完成或失败
+            if (data.status === 'complete') {
+                es.close();
+                this.minilmDownloading = false;
+                this.minilmPercent = 100;
+                this.minilmModelStatus(); // 刷新模型存在状态
+                // 假设 showNotification 是一个可用的全局/混入函数
+                if (typeof showNotification === 'function') {
+                    showNotification(this.t('modelDownloadSuccess'));
+                }
+                return;
+            }
+
+            if (data.status === 'failed') {
+                es.close();
+                this.minilmDownloading = false;
+                // 尝试从 files 列表中提取具体的错误信息
+                const firstError = data.files.find(f => f.failed)?.error || '';
+                if (typeof showNotification === 'function') {
+                    showNotification(this.t('modelDownloadFailed') + (firstError ? `: ${firstError}` : ''), 'error');
+                }
+                return;
+            }
+
+            // 2. 聚合所有文件的进度
+            let totalDone = 0;
+            let grandTotal = 0;
+
+            if (data.files && data.files.length > 0) {
+                let hasFailedFile = false;
+                data.files.forEach(file => {
+                    totalDone += file.done || 0;
+                    grandTotal += file.total || 0;
+                    
+                    // 检查是否有任何单个文件失败 (后端已经在 status='failed' 中处理了，这里做冗余检查)
+                    if (file.failed) {
+                        hasFailedFile = true;
+                    }
+                });
+
+                if (hasFailedFile) {
+                      // 如果检测到文件失败，但 status 还没有被后端更新为 'failed'，则手动关闭和报错
+                      es.close();
+                      this.minilmDownloading = false;
+                      const failedFile = data.files.find(f => f.failed);
+                      if (typeof showNotification === 'function') {
+                        showNotification(this.t('modelDownloadFailed') + `: ${failedFile.filename} 失败`, 'error');
+                      }
+                      return;
+                }
+            }
+
+            // 3. 计算整体百分比
+            this.minilmPercent = grandTotal > 0 ? Math.round((totalDone / grandTotal) * 100) : 0;
+        };
+        
+        // 监听错误
+        es.onerror = () => {
+            // 如果 EventSource 在没有收到 close 消息的情况下关闭，通常意味着错误
+            if (this.minilmEventSource) {
+                this.minilmEventSource.close();
+            }
+            this.minilmDownloading = false;
+            if (typeof showNotification === 'function') {
+                showNotification(this.t('modelDownloadFailed') + ' (Network/Connection Error)', 'error');
+            }
+            this.minilmModelStatus(); // 再次检查状态，以防实际已下载完成
+        };
+    },
+
+    /**
+     * 删除本地 MiniLM 模型
+     */
+    async minilmRemove() {
+        try {
+            // 使用 Element Plus 确认对话框来增加安全性（如果可用）
+            // 示例：await this.$confirm('确定删除 MiniLM 模型吗？', '警告', { type: 'warning' })
+
+            const res = await fetch('/minilm-model/remove', { method: 'DELETE' });
+            if (!res.ok) throw new Error();
+            
+            if (typeof showNotification === 'function') {
+                showNotification(this.t('deleteSuccess'));
+            }
+            this.minilmModelStatus(); // 刷新模型存在状态
+        } catch (error) {
+            if (typeof showNotification === 'function') {
+                showNotification(this.t('deleteFailed') + (error.message || ''), 'error');
+            }
+        }
+    },
+
   async updatePlugin(plugin) {
     // 临时响应式标记
     plugin._updating = true // 发送更新请求

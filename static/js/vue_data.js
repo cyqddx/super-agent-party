@@ -459,6 +459,10 @@ let vue_data = {
     sherpaPercent: 0,                     // 实时进度 0-100
     sherpaEventSource: null,               // 当前 SSE 实例
     sherpaModelName: '',                 // 模型名称
+    minilmModelExists: false,       // 模型是否已存在
+    minilmDownloading: false,       // 是否正在下载
+    minilmPercent: 0,               // 实时进度 0-100
+    minilmEventSource: null,        // 当前 SSE 实例
     asrSettings: {
       enabled: false,
       engine: 'sherpa',
