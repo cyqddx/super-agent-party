@@ -2508,7 +2508,7 @@ let vue_methods = {
         'ZhipuAI': 'https://open.bigmodel.cn/api/paas/v4',
         'Volcano': 'https://ark.cn-beijing.volces.com/api/v3',
         'moonshot': 'https://api.moonshot.cn/v1',
-        'minimax': 'https://api.minimax.chat/v1',
+        'minimax': 'https://api.minimaxi.com/v1',
         'Ollama': this.isdocker ? 'http://host.docker.internal:11434/v1' : 'http://127.0.0.1:11434/v1',
         'Vllm': this.isdocker ? 'http://host.docker.internal:8000/v1' :'http://127.0.0.1:8000/v1',
         'LMstudio': this.isdocker ? 'http://host.docker.internal:1234/v1' :'http://127.0.0.1:1234/v1',
@@ -2523,7 +2523,7 @@ let vue_methods = {
         'qianfan': 'https://qianfan.baidubce.com/v2',
         'hunyuan': 'https://api.hunyuan.cloud.tencent.com/v1',
         'siliconflow': 'https://api.siliconflow.cn/v1',
-        '302.AI': 'https://api.302.ai/v1',
+        '302.AI': 'https://api.302ai.cn/v1',
         'stepfun': 'https://api.stepfun.com/v1',
         'o3': 'https://api.o3.fan/v1',
         'aihubmix': 'https://aihubmix.com/v1',
@@ -7684,6 +7684,7 @@ async deleteGaussSceneOption(sceneId) {
       });
       
       this.conversations = [];
+      this.conversationId = null;
       await this.saveConversations();
     } catch (error) {
       // 用户取消操作
@@ -7702,6 +7703,9 @@ async deleteGaussSceneOption(sceneId) {
       this.conversations = this.conversations.filter(conv => 
         conv.timestamp && conv.timestamp >= oneWeekAgo
       );
+      if (this.conversations == []){
+        this.conversationId = null; // 清空当前对话ID
+      }
       
       await this.saveConversations();
     } catch (error) {
