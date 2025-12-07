@@ -5028,7 +5028,8 @@ async def text_to_speech(request: Request):
                 # 3. 生成唯一临时文件名
                 # 使用 UUID + index 确保绝对唯一，避免多线程写入同一个文件
                 unique_suffix = uuid.uuid4().hex[:8]
-                temp_filename = f"temp_tts_{req_index}_{unique_suffix}.wav"
+                temp_file = f"temp_tts_{req_index}_{unique_suffix}.wav"
+                temp_filename = os.path.join(TOOL_TEMP_DIR, temp_file)
                 
                 wav_data = b""
                 
