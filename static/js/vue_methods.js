@@ -10726,4 +10726,127 @@ clearSegments() {
       }
     },
 
+  addTableEnhancements() {
+    this.$nextTick(() => {
+      const tables = document.querySelectorAll('.markdown-body table');
+      
+      tables.forEach((table) => {
+        if (table.parentElement.classList.contains('markdown-table-wrapper')) return;
+
+        // 1. 创建容器
+        const wrapper = document.createElement('div');
+        wrapper.className = 'markdown-table-wrapper';
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+
+        // 2. 创建按钮
+        const btn = document.createElement('button');
+        btn.className = 'table-download-btn';
+        // 使用 fa-file-excel 图标，更直观
+        btn.innerHTML = '<i class="fa-solid fa-file-excel"></i> XLSX';
+        btn.title = '导出为 Excel 文件';
+        
+        // 3. 绑定点击事件 (调用新的 exceljs 逻辑)
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          // 添加加载状态反馈（可选）
+          const originalText = btn.innerHTML;
+          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 导出中...';
+          btn.disabled = true;
+          
+          try {
+            await this.downloadTableAsXLSX(table);
+          } catch (error) {
+            console.error('Excel 导出失败:', error);
+            this.$message?.error('导出失败，请重试');
+          } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+          }
+        };
+
+        wrapper.appendChild(btn);
+      });
+    });
+  },
+
+  /**
+   * 使用 ExcelJS 生成真正的 .xlsx 文件
+   */
+  async downloadTableAsXLSX(tableElement) {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('数据导出');
+
+    // --- 1. 提取 HTML 表格数据 ---
+    const rows = tableElement.querySelectorAll('tr');
+    
+    // 遍历 HTML 行
+    rows.forEach((row, rowIndex) => {
+      const cells = row.querySelectorAll('td, th');
+      const rowData = [];
+      
+      cells.forEach(cell => {
+        // 获取纯文本
+        rowData.push(cell.innerText.trim());
+      });
+      
+      // 添加到 Worksheet
+      const excelRow = worksheet.addRow(rowData);
+    });
+
+    // --- 2. 美化 Excel 样式 (Pro 模式) ---
+    
+    // 2.1 设置表头样式 (第一行)
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { 
+      name: '微软雅黑', 
+      bold: true, 
+      color: { argb: 'FFFFFFFF' } // 白字
+    };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E849B' } // 使用你的主题色 (深青色)
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // 2.2 自动计算列宽
+    worksheet.columns.forEach(column => {
+      let maxLength = 0;
+      column.eachCell({ includeEmpty: true }, cell => {
+        const columnLength = cell.value ? cell.value.toString().length : 10;
+        if (columnLength > maxLength) maxLength = columnLength;
+      });
+      // 限制最大宽度，防止太宽
+      column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2);
+    });
+
+    // 2.3 添加边框
+    worksheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFDCDFE6' } },
+          left: { style: 'thin', color: { argb: 'FFDCDFE6' } },
+          bottom: { style: 'thin', color: { argb: 'FFDCDFE6' } },
+          right: { style: 'thin', color: { argb: 'FFDCDFE6' } }
+        };
+        // 内容垂直居中
+        cell.alignment = { ...cell.alignment, vertical: 'middle', wrapText: true };
+      });
+    });
+
+    // --- 3. 生成并下载文件 ---
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, "");
+    link.href = URL.createObjectURL(blob);
+    link.download = `table_export_${timestamp}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  },
+
 }

@@ -174,6 +174,16 @@ const app = Vue.createApp({
     window.removeEventListener('resize', this.handleResize);
   },
   watch: {
+    messages: {
+      handler() {
+        // 这里的 setTimeout 是为了等待 Markdown 渲染库完成 DOM 更新
+        setTimeout(() => {
+          this.addTableEnhancements();
+        }, 300); 
+      },
+      deep: true
+    },
+
     'ttsSettings.engine': function(newVal) {
       if (newVal === 'systemtts') {
         // 如果列表为空，则去获取
