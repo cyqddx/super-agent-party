@@ -2460,6 +2460,7 @@ if ('serviceWorker' in navigator) {
                         <el-select
                           v-model="newTTSConfig.systemVoiceName"
                           class="full-width-input"
+                          filterable
                           :loading="isLoadingSystemVoices"
                           @change="autoSaveSettings"
                         >
@@ -4947,6 +4948,7 @@ if ('serviceWorker' in navigator) {
                           v-model="ttsSettings.systemVoiceName"
                           class="full-width-input"
                           :loading="isLoadingSystemVoices"
+                          filterable
                           @change="autoSaveSettings"
                         >
                           <el-option
