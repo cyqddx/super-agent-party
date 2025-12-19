@@ -1191,6 +1191,11 @@ let vue_methods = {
           }
 
         }
+        // 新增：处理关闭扩展侧边栏
+        else if (data.type === 'trigger_close_extension') {
+          console.log('关闭侧边栏')
+          this.resetToDefaultView();
+        }
         // 新增：处理触发发送消息
         else if (data.type === 'trigger_send_message') {
           this.sendMessage();
