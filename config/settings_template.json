@@ -392,6 +392,7 @@
     "VRMConfig": {
       "name": "default",
       "enabledExpressions": false,
+      "enabledMotions": false,
       "selectedModelId": "alice", 
       "windowWidth": 540,
       "windowHeight": 960,

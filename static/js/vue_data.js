@@ -692,6 +692,7 @@ let vue_data = {
     VRMConfig: {
       name: 'default',
       enabledExpressions: false,
+      enabledMotions: false,
       selectedModelId: 'alice', // 默认选择Alice模型
       windowWidth: 540,
       windowHeight: 960,

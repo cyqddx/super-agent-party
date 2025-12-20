@@ -9838,6 +9838,13 @@ if ('serviceWorker' in navigator) {
                               ></el-switch>
                             </el-form-item>
                             
+                            <el-form-item :label="t('enabledMotions')" class="form-item-align" label-position="left">
+                              <el-switch 
+                                v-model="VRMConfig.enabledMotions" 
+                                @change="autoSaveSettings"
+                              ></el-switch>
+                            </el-form-item>
+
                             <el-form-item :label="t('asyncTools')" class="form-item-align" label-position="left">
                               <el-switch 
                                 v-model="toolsSettings.asyncTools.enabled" 
