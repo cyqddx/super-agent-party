@@ -23,6 +23,17 @@ def get_tiktoken_cache_path():
 os.environ["TIKTOKEN_CACHE_DIR"] = get_tiktoken_cache_path()
 # ---------------------------------
 
+# --- 新增：清洗文本辅助函数 ---
+def clean_text(text: str) -> str:
+    """
+    清洗文本，移除无法编码的 Unicode 代理字符（surrogates）。
+    解决 'utf-8' codec can't encode character ... surrogates not allowed 错误。
+    """
+    if not isinstance(text, str):
+        return str(text)
+    # encode('utf-8', 'ignore') 会忽略掉非法的 surrogate 字符
+    return text.encode('utf-8', 'ignore').decode('utf-8')
+
 
 class MyOpenAICompatibleEmbeddings(Embeddings):
     """
@@ -43,42 +54,32 @@ class MyOpenAICompatibleEmbeddings(Embeddings):
         json_data = {"model": self.model, "input": texts}
         
         # 使用 httpx.AsyncClient 发送请求
-        # timeout=None 是为了避免在大型嵌入任务中请求超时
         async with httpx.AsyncClient(timeout=None) as client:
             try:
                 # 调用词嵌入接口
                 response = await client.post(self.endpoint, headers=headers, json=json_data)
                 
-                # 检查 HTTP 状态码，如果不是 2xx 则抛出异常
+                # 检查 HTTP 状态码
                 response.raise_for_status() 
                 
                 return response.json()["data"]
                 
             except httpx.HTTPStatusError as e:
-                # 捕捉 HTTP 状态码错误 (例如 503 模型未加载)
                 detail = e.response.json().get('detail', e.response.text) if e.response.text else 'Unknown error'
                 raise RuntimeError(f"Embedding API HTTP Error {e.response.status_code}: {detail}")
             except Exception as e:
-                # 捕捉连接错误
                 raise ConnectionError(f"Embedding API connection failed: {e.__class__.__name__}: {e}")
 
     # --- LangChain 兼容的同步方法 ---
-    # 由于 LangChain 在构建向量库时会同步调用这些方法，我们必须在同步方法中运行异步核心。
-    
     def embed_query(self, text: str) -> List[float]:
-        # 在同步方法中运行异步任务
-        # 注意: 这种做法可能在 LangChain 内部的多线程环境中有风险，但可以解决死锁问题。
         data = asyncio.run(self.aembed_query(text))
         return data
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        # 在同步方法中运行异步任务
         data = asyncio.run(self.aembed_documents(texts))
         return data
 
-    # --- 暴露异步 LangChain 方法 (供内部调用) ---
-    # LangChain 的新版本倾向于使用这些异步方法。如果您的 LangChain 版本支持，可以直接调用它们。
-    
+    # --- 暴露异步 LangChain 方法 ---
     async def aembed_query(self, text: str) -> List[float]:
         data = await self._aembed(text)
         return data[0]["embedding"]
@@ -98,7 +99,9 @@ def chunk_documents(results: List[Dict], cur_kb) -> List[Document]:
     
     all_docs = []
     for doc in results:
-        chunks = text_splitter.split_text(doc["content"])
+        # 在分块前也可以简单清洗一下，防止 text_splitter 报错
+        clean_content = clean_text(doc["content"])
+        chunks = text_splitter.split_text(clean_content)
         for chunk in chunks:
             all_docs.append(Document(
                 page_content=chunk,
@@ -110,38 +113,56 @@ def chunk_documents(results: List[Dict], cur_kb) -> List[Document]:
             ))
     return all_docs
 
-# 核心修改：将 build_vector_store 改为异步函数，以便在内部调用 MyOpenAICompatibleEmbeddings 的异步方法
+# 核心修改：增加容错和数据清洗
 async def build_vector_store(docs: List[Document], kb_id, cur_kb: Dict, cur_vendor: str):
-    """构建并保存双索引（参数修正版）"""
+    """构建并保存双索引"""
     if not isinstance(docs, list) or not all(isinstance(d, Document) for d in docs):
         raise ValueError("Input must be a list of Document objects")
     
-    # ========== BM25索引构建 (同步操作，但放在异步函数中，避免阻塞) ==========
-    try:
-        kb_dir = Path(KB_DIR)
-        kb_dir.mkdir(parents=True, exist_ok=True)
-        save_dir = kb_dir / str(kb_id)
-        save_dir.mkdir(parents=True, exist_ok=True)
+    kb_dir = Path(KB_DIR)
+    kb_dir.mkdir(parents=True, exist_ok=True)
+    save_dir = kb_dir / str(kb_id)
+    save_dir.mkdir(parents=True, exist_ok=True)
 
+    # ========== BM25索引构建 (容错版) ==========
+    try:
         bm25_path = save_dir / "bm25_index.json"
         
         if not docs:
-            raise ValueError("Documents list is empty")
-            
-        # 使用 asyncio.to_thread 确保同步文件I/O不会阻塞事件循环
-        await asyncio.to_thread(
-            lambda: json.dump({
-                "docs": [
-                    {
-                        "page_content": doc.page_content,
-                        "metadata": doc.metadata
-                    } for doc in docs
-                ]
-            }, open(bm25_path, "w", encoding="utf-8"), ensure_ascii=False)
-        )
+            print("Warning: No documents provided for BM25.")
+        else:
+            # 1. 清洗数据，防止 Unicode 错误
+            clean_docs_data = []
+            for doc in docs:
+                clean_metadata = {
+                    k: clean_text(v) if isinstance(v, str) else v 
+                    for k, v in doc.metadata.items()
+                }
+                clean_docs_data.append({
+                    "page_content": clean_text(doc.page_content),
+                    "metadata": clean_metadata
+                })
+
+            # 2. 保存 (使用 clean_docs_data)
+            await asyncio.to_thread(
+                lambda: json.dump(
+                    {"docs": clean_docs_data}, 
+                    open(bm25_path, "w", encoding="utf-8", errors="ignore"), 
+                    ensure_ascii=False
+                )
+            )
+            print(f"BM25 index saved successfully for KB {kb_id}")
+
     except Exception as e:
-        raise RuntimeError(f"Failed to save BM25 index: {str(e)}")
-        
+        # 即使 BM25 失败，也只打印警告，不中断程序
+        print(f"⚠️ BM25 Index failed (Skipping): {str(e)}")
+        # 尝试清理可能损坏的文件
+        if 'bm25_path' in locals() and bm25_path.exists():
+            try:
+                os.remove(bm25_path)
+            except:
+                pass
+
     # ========== 向量索引构建 (使用异步客户端) ==========
     try:
         embeddings = MyOpenAICompatibleEmbeddings(
@@ -150,15 +171,13 @@ async def build_vector_store(docs: List[Document], kb_id, cur_kb: Dict, cur_vend
             base_url=cur_kb["base_url"],
         )
         
-        # 批量处理文档，LangChain 的 FAISS.from_documents 和 add_documents 会调用 
-        # embeddings.embed_documents，该方法内部已通过 asyncio.run 适配
-        batch_size = 5 
+        batch_size = 20 
         vector_db = None
         
         for i in range(0, len(docs), batch_size):
             batch = docs[i:i+batch_size]
             
-            # 由于 LangChain 的 FAISS 构造器是同步的，我们使用 asyncio.to_thread 来运行它
+            # 使用 asyncio.to_thread 运行同步的 FAISS 方法
             if vector_db is None:
                 vector_db = await asyncio.to_thread(FAISS.from_documents, batch, embeddings)
             else:
@@ -167,42 +186,41 @@ async def build_vector_store(docs: List[Document], kb_id, cur_kb: Dict, cur_vend
             print(f"Processed {min(i+batch_size, len(docs))}/{len(docs)} documents")
         
         # 最终保存
-        save_path = Path(KB_DIR) / str(kb_id)
-        # 确保保存操作也在线程中完成
-        await asyncio.to_thread(vector_db.save_local, folder_path=str(save_path), index_name="index")
+        if vector_db:
+            await asyncio.to_thread(vector_db.save_local, folder_path=str(save_dir), index_name="index")
+            print(f"Vector store saved successfully for KB {kb_id}")
         
     except Exception as e:
-        # 如果模型未加载，这里会捕获到 RuntimeError/ConnectionError
         raise RuntimeError(f"Vector store build failed: {str(e)}")
 
 
 async def load_retrievers(kb_id, cur_kb, cur_vendor):
-    """加载双检索器"""
-    # 加载BM25
-    bm25_path = Path(KB_DIR) / str(kb_id) / "bm25_index.json"
-    
-    # 异步读取文件
-    bm25_data = await asyncio.to_thread(json.load, open(bm25_path, "r", encoding="utf-8"))
-    
-    bm25_docs = [
-        Document(
-            page_content=doc["page_content"],
-            metadata=doc["metadata"]
-        ) for doc in bm25_data["docs"]
-    ]
-    # BM25Retriever 构造器是同步的
-    bm25_retriever = await asyncio.to_thread(BM25Retriever.from_documents, bm25_docs)
-    bm25_retriever.k = cur_kb["chunk_k"]
-    
-    # 加载向量检索器
+    """加载双检索器 (带 BM25 缺失的回退机制)"""
     kb_path = Path(KB_DIR) / str(kb_id)
+    bm25_path = kb_path / "bm25_index.json"
+    
+    # 1. 尝试加载 BM25
+    bm25_retriever = None
+    try:
+        if bm25_path.exists():
+            bm25_data = await asyncio.to_thread(json.load, open(bm25_path, "r", encoding="utf-8"))
+            bm25_docs = [
+                Document(page_content=doc["page_content"], metadata=doc["metadata"]) 
+                for doc in bm25_data["docs"]
+            ]
+            if bm25_docs:
+                bm25_retriever = await asyncio.to_thread(BM25Retriever.from_documents, bm25_docs)
+                bm25_retriever.k = cur_kb["chunk_k"]
+    except Exception as e:
+        print(f"Error loading BM25 (will fallback): {e}")
+
+    # 2. 加载向量检索器
     embeddings = MyOpenAICompatibleEmbeddings(
         model=cur_kb["model"],
         api_key=cur_kb["api_key"],
         base_url=cur_kb["base_url"],
     )
     
-    # FAISS.load_local 是同步的，内部会调用 embed_query
     vector_db = await asyncio.to_thread(
         FAISS.load_local,
         folder_path=str(kb_path),
@@ -213,6 +231,13 @@ async def load_retrievers(kb_id, cur_kb, cur_vendor):
     vector_retriever = vector_db.as_retriever(
         search_kwargs={"k": cur_kb["chunk_k"]}
     )
+
+    # 3. 如果 BM25 加载失败（比如之前构建时跳过了），使用向量检索器顶替
+    # 这样 EnsembleRetriever 相当于用了两个 VectorRetriever，不会报错
+    if bm25_retriever is None:
+        print("Fallback: Using Vector Retriever for BM25 slot.")
+        bm25_retriever = vector_retriever
+
     return bm25_retriever, vector_retriever
 
 async def query_vector_store(query: str, kb_id, cur_kb, cur_vendor):
