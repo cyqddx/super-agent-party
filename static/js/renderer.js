@@ -81,23 +81,6 @@ const A2UIRendererComponent = {
               v-html="renderMarkdown(item.props.content)"
             ></div>
 
-            <!-- 16. Code (代码块 - 独立渲染，无额外 wrapper) -->
-            <div 
-              v-if="item.type === 'Code'" 
-              class="a2ui-code-block"
-            >
-              <div class="code-header">
-                <span class="lang-tag">{{ item.props.language || 'text' }}</span>
-                <div class="copy-btn" @click="copyToClipboard(item.props.content, $event)">
-                  <i class="fa-regular fa-copy"></i>
-                  <span>copy</span>
-                </div>
-              </div>
-              <div class="code-body">
-                <pre><code>{{ item.props.content }}</code></pre>
-              </div>
-            </div>
-
             <!-- 4. Divider -->
             <el-divider 
               v-if="item.type === 'Divider'" 
@@ -334,6 +317,51 @@ const A2UIRendererComponent = {
                     </template>
                 </el-alert>
              </div>
+
+            <!-- 16. Code (代码块 - 独立渲染，无额外 wrapper) -->
+            <div 
+              v-if="item.type === 'Code'" 
+              class="a2ui-code-block"
+            >
+              <div class="code-header">
+                <span class="lang-tag">{{ item.props.language || 'text' }}</span>
+                <div class="copy-btn" @click="copyToClipboard(item.props.content, $event)">
+                  <i class="fa-regular fa-copy"></i>
+                  <span>copy</span>
+                </div>
+              </div>
+              <div class="code-body">
+                <pre><code>{{ item.props.content }}</code></pre>
+              </div>
+            </div>
+
+            <!-- 17. Table (表格组件) -->
+            <div 
+              v-if="item.type === 'Table'" 
+              class="a2ui-table-wrapper"
+            >
+              <div class="a2ui-table-scroll">
+                <table class="a2ui-table">
+                  <thead>
+                    <tr>
+                      <th v-for="(head, hIdx) in item.props.headers" :key="hIdx">
+                        {{ head }}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, rIdx) in item.props.rows" :key="rIdx">
+                      <!-- 支持简单 HTML 或纯文本 -->
+                      <td v-for="(cell, cIdx) in row" :key="cIdx" v-html="renderMarkdown(String(cell))"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!-- 如果表格很宽，给个小提示 -->
+              <div v-if="item.props.headers && item.props.headers.length > 3" class="a2ui-scroll-hint">
+                <i class="fa-solid fa-arrows-left-right"></i> 可左右滑动查看
+              </div>
+            </div>
 
           </template>
         </div>

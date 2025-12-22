@@ -854,6 +854,7 @@ async def tools_change_messages(request: ChatRequest, settings: dict):
 ## 1. 基础展示
 - **Text**: `{ "type": "Text", "props": { "content": "Markdown文本(也就是普通文本，支持加粗等，但不支持代码块)" } }`
 - **Code**: `{ "type": "Code", "props": { "content": "print('hello')", "language": "python" } }` (★ 展示代码专用，替代MD代码块)
+- **Table**: `{ "type": "Table", "props": { "headers": ["列1", "列2"], "rows": [ ["a1", "b1"], ["a2", "b2"] ] } }` (★ 展示结构化数据)
 - **Alert**: `{ "type": "Alert", "props": { "title": "标题", "content": "内容", "variant": "success/warning/info/error" } }`
 - **Divider**: `{ "type": "Divider" }`
 
@@ -910,16 +911,61 @@ Assistant: 没问题，这是一个调查问卷模板：
 }
 ```
 
-## Ex 3: 代码展示 (正确示范)
-User: 用 Python 写一个 Hello World，用交互式UI展示，而不是markdown。
+## Ex 3: 需要在交互式界面中显示代码（不在A2UI内部显示代码，直接使用markdown代码块即可！）
+User: 模拟一个linux终端。
 Assistant: 代码如下：
 ```a2ui
-{ 
-    "type": "Code", 
-    "props": { 
-    "content": "print('Hello World')\n# 这是一个注释", 
-    "language": "python" 
-    } 
+{
+  "type": "Card",
+  "props": {
+    "title": "Linux 终端模拟器"
+  },
+  "children": [
+    {
+      "type": "Input",
+      "props": {
+        "label": "输入命令",
+        "key": "command",
+        "placeholder": "例如：ls, pwd, whoami, date, echo 'Hello' 等"
+      }
+    },
+    {
+      "type": "Group",
+      "children": [
+        {
+          "type": "Button",
+          "props": {
+            "label": "执行命令",
+            "action": "submit",
+            "variant": "primary"
+          }
+        },
+        {
+          "type": "Button",
+          "props": {
+            "label": "清空输出",
+            "action": "search"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Divider"
+    },
+    {
+      "type": "Text",
+      "props": {
+        "content": "**终端输出区域：**"
+      }
+    },
+    {
+      "type": "Code",
+      "props": {
+        "content": "user@linux-terminal:~$ 等待输入命令...",
+        "language": "bash"
+      }
+    }
+  ]
 }
 ```
 """

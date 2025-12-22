@@ -5185,93 +5185,167 @@ body {
 }
 
 /* ========================================= */
-/* A2UI Code 组件样式 (Mac 风格终端) */
+/* A2UI Code 组件样式 (适配通用 code-block 风格) */
 /* ========================================= */
 
 .a2ui-code-block {
-  margin-bottom: 15px;
-  border-radius: 8px;
-  overflow: hidden; /* 确保圆角不被内部溢出破坏 */
-  font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
-  border: 1px solid rgba(128, 128, 128, 0.2);
+  /* 容器基础：跟随 .code-block */
+  position: relative;
+  margin: 1.5em 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
   
-  /* 自动适配背景色：
-     亮色模式：非常浅的灰色
-     深色模式：深黑灰色 (接近 VSCode)
-  */
-  background-color: var(--code-bg-color, #282c34);
+  /* 边框与阴影跟随 General Card Upgrades 定义 */
+  border: 1px solid rgba(128, 128, 128, 0.15) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+  
+  /* 背景色跟随主题变量 */
+  background-color: var(--code-bg-color, #282c34) !important;
+  font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
 }
 
-
-/* 顶部栏 (语言标签 + 复制按钮) */
+/* 顶部栏：跟随 .code-header (固定深色风格) */
 .a2ui-code-block .code-header {
+  background: #282c34 !important; /* 固定深色头，对比更强 */
+  padding: 10px 16px !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  /* 顶部栏背景：稍微比代码区深一点或浅一点，形成层次感 */
-  background-color: rgba(128, 128, 128, 0.1);
-  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+  border-bottom: none; 
   user-select: none;
 }
 
+/* 语言标签：跟随 .code-lang */
 .a2ui-code-block .lang-tag {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: #abb2bf !important; /* Atom One Dark 风格灰色 */
   font-weight: 600;
+  font-size: 0.85em;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-/* 复制按钮 */
+/* 复制按钮：跟随 .copy-button */
 .a2ui-code-block .copy-btn {
   display: flex;
   align-items: center;
   gap: 6px;
+  background: rgba(255,255,255,0.1) !important;
+  color: #fff !important;
+  border-radius: 4px;
+  padding: 4px 8px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
   cursor: pointer;
   transition: all 0.2s;
-  padding: 4px 8px;
-  border-radius: 4px;
+  border: none;
 }
 
 .a2ui-code-block .copy-btn:hover {
-  background-color: rgba(128, 128, 128, 0.15);
-  color: var(--el-color-primary);
+  background: rgba(255,255,255,0.2) !important;
+}
+
+/* 按钮内的图标或文字 */
+.a2ui-code-block .copy-btn i,
+.a2ui-code-block .copy-btn span {
+  color: #fff !important;
 }
 
 /* 代码内容区 */
 .a2ui-code-block .code-body {
-  padding: 12px;
-  overflow-x: auto; /* 超出宽度横向滚动 */
+  padding: 0; /* 内部 pre 通常自带 padding */
+  overflow-x: auto;
 }
 
 /* 核心 Pre/Code 样式 */
 .a2ui-code-block .code-body pre {
   margin: 0;
-  padding: 0;
-  background-color: var(--code-bg-color, #282c34);
+  padding: 1em;
+  background-color: transparent !important; /* 让容器背景透出来 */
   border: none;
   line-height: 1.5;
-  color: var(--el-text-color-secondary);
+  color: var(--hljs-text, var(--el-text-color-primary)); /* 优先使用高亮变量 */
 }
 
 .a2ui-code-block .code-body pre code {
   font-size: 13px;
-  /* 确保代码颜色在深浅模式下可见 */
-  color: var(--el-text-color-secondary);
-  white-space: pre; /* 保持格式 */
+  white-space: pre;
   word-wrap: normal;
+  font-family: inherit;
+  color: inherit;
 }
 
-/* 移除 markdown 内容中最后一个元素的底部边距 */
+/* ========================================= */
+/* A2UI Table 组件样式 */
+/* ========================================= */
+
+.a2ui-table-wrapper {
+  margin-bottom: 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  background-color: var(--bg-color, var(--el-bg-color)); /* 跟随背景 */
+  overflow: hidden; /* 圆角裁切 */
+}
+
+/* 滚动容器：关键！防止撑破聊天气泡 */
+.a2ui-table-scroll {
+  width: 100%;
+  overflow-x: auto; /* 允许横向滚动 */
+  -webkit-overflow-scrolling: touch; /* 移动端顺滑滚动 */
+}
+
+.a2ui-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 100%; /* 确保填满 */
+}
+
+/* 表头样式 */
+.a2ui-table th {
+  background-color: rgba(128, 128, 128, 0.1); /* 半透明表头背景 */
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+  white-space: nowrap; /* ★ 关键：表头不换行，防止挤压 */
+}
+
+/* 单元格样式 */
+.a2ui-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
+  min-width: 80px; /* 防止列太窄 */
+}
+
+/* 偶数行斑马纹 (提升可读性) */
+.a2ui-table tbody tr:nth-child(even) {
+  background-color: rgba(128, 128, 128, 0.03);
+}
+
+/* 悬停效果 */
+.a2ui-table tbody tr:hover {
+  background-color: rgba(128, 128, 128, 0.08);
+}
+
+/* 底部滚动提示 (仅视觉辅助) */
+.a2ui-scroll-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  padding: 4px;
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+
+
+/* 移除 markdown 内容中最后一个元素的底部边距 (保持原有逻辑) */
 .markdown-body > *:last-child,
 .markdown-body > div > *:last-child {
     margin-bottom: 0 !important;
 }
 
-/* 针对你代码中的特定结构，可能还需要深入一层 */
 .markdown-body p:last-child {
     margin-bottom: 0 !important;
 }
