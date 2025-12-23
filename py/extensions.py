@@ -135,6 +135,7 @@ async def delete_extension(ext_id: str):
 # ------------------ GitHub 安装 ------------------
 class GitHubInstallRequest(BaseModel):
     url: str
+    backupUrl: Optional[str] = ""
 
 def _do_single_install(url: str, temp_dir: Path, target: Path):
     """真正执行一次下载或克隆"""
@@ -144,7 +145,7 @@ def _do_single_install(url: str, temp_dir: Path, target: Path):
     
     if url.endswith(".zip"):
         zip_path = temp_dir / "repo.zip"
-        with httpx.stream("GET", url, follow_redirects=True) as resp:
+        with httpx.stream("GET", url, follow_redirects=True, timeout=60.0) as resp:
             resp.raise_for_status()
             with open(zip_path, "wb") as f:
                 for chunk in resp.iter_bytes():
@@ -162,49 +163,58 @@ def _do_single_install(url: str, temp_dir: Path, target: Path):
         # git clone
         clone_dir = temp_dir / "repo"
         url = url.rstrip("/").removesuffix(".git")
-        subprocess.run(
-            ["git", "clone", f"{url}.git", str(clone_dir)],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
         
-        make_tree_writable(clone_dir)  # 清除只读属性
+        # 修改这里：增加 timeout 参数，防止 git 卡死
+        try:
+            subprocess.run(
+                ["git", "clone", f"{url}.git", str(clone_dir)],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=60  # 60秒超时，超时后会抛出 TimeoutExpired，触发外层切换备用源
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Git clone timeout")
+            
+        make_tree_writable(clone_dir)
         shutil.move(str(clone_dir), str(target))
 
-def _run_bg_install(repo_url: str, ext_id: str):
+# 修改函数签名，接收 backup_url
+def _run_bg_install(repo_url: str, ext_id: str, backup_url: str = ""):
     """后台安装任务，支持主备仓库回退"""
     target = Path(EXT_DIR) / ext_id
     target.parent.mkdir(parents=True, exist_ok=True)
     temp_dir = Path(tempfile.mkdtemp())
 
-    # 组装主备仓库地址
-    pkg_file = target / "package.json"
-    backup: str = ""
-    if pkg_file.exists():
-        try:
-            backup = json.loads(pkg_file.read_text(encoding="utf-8")).get("backupRepository", "")
-        except Exception:
-            pass
-
+    # --- 删除原来的读取 package.json 的逻辑 ---
+    # 原来的逻辑在安装时是无效的，因为 target 目录此时还不存在或为空
+    
     urls: List[str] = []
     if repo_url.strip():
         urls.append(repo_url.strip().rstrip("/"))
-    if backup.strip():
-        urls.append(backup.strip().rstrip("/"))
+    
+    # 直接使用传入的参数
+    if backup_url and backup_url.strip():
+        urls.append(backup_url.strip().rstrip("/"))
 
     if not urls:
+        robust_rmtree(temp_dir) # 记得清理
         raise RuntimeError("没有任何可用仓库地址")
+
+    print(f"尝试安装 {ext_id}，可用地址: {urls}") # 方便调试
 
     # 顺序尝试安装
     last_err: Exception | None = None
     for url in urls:
         try:
+            print(f"正在尝试: {url}")
             _do_single_install(url, temp_dir, target)
             # 成功则清理临时目录并返回
             robust_rmtree(temp_dir)
+            print(f"安装成功: {url}")
             return
         except Exception as e:
+            print(f"安装失败 {url}: {e}")
             last_err = e
             continue
 
@@ -227,7 +237,8 @@ async def install_from_github(
     if target.exists():
         raise HTTPException(status_code=409, detail="扩展已存在")
     
-    background.add_task(_run_bg_install, req.url, ext_id)
+    # 传递 backupUrl
+    background.add_task(_run_bg_install, req.url, ext_id, req.backupUrl)
     return {"ext_id": ext_id, "status": "installing"}
 
 # ------------------ 上传 ZIP ------------------

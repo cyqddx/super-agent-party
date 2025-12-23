@@ -10025,7 +10025,10 @@ clearSegments() {
         const res = await fetch('/api/extensions/install-from-github', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ 
+            url,
+            backupUrl: ""  
+          }),
         });
         if (res.status === 409) throw new Error(this.t('extensionExists'));
         if (!res.ok) {
@@ -10103,7 +10106,11 @@ clearSegments() {
         const res = await fetch('/api/extensions/install-from-github', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: plugin.repository }),
+          // 修改这里：增加 backupUrl 字段
+          body: JSON.stringify({ 
+            url: plugin.repository,
+            backupUrl: plugin.backupRepository || "" 
+          }),
         });
         if (res.status === 409) throw new Error('插件已存在');
         if (!res.ok) throw new Error('安装失败');
