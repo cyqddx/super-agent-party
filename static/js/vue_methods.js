@@ -8850,6 +8850,28 @@ stopTTSActivities() {
               title: this.t('guide.show-Add-Dialog'),
               description: this.t('guide.show-Add-Dialog-notice'),
               side: 'top',
+              // 添加 onNextClick 处理逻辑
+              onNextClick: async () => {
+                // 1. 判断是否已选择供应商 (假设 newProviderTemp.vendor 为空即未选)
+                if (!this.newProviderTemp.vendor) {
+                  // 2. 确保供应商列表至少有3个，防止报错
+                  if (this.vendorOptions && this.vendorOptions.length >= 3) {
+                    // 取出第三个供应商的值 (数组索引从0开始，所以是2)
+                    const thirdVendorValue = this.vendorOptions[2].value;
+                    
+                    // 调用你的选择方法，或者直接赋值
+                    // this.newProviderTemp.vendor = thirdVendorValue; 
+                    this.handleSelectVendor(thirdVendorValue);
+                    
+                    // 3. 等待 Vue 更新 DOM (这一步很重要，因为下一步要高亮"确认"按钮，
+                    // 需要确保按钮的 disable 状态已被移除)
+                    await this.$nextTick(); 
+                  }
+                }
+                
+                // 4. 手动触发下一步
+                d.moveNext();
+              }
             }
           },
           {
