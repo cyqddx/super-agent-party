@@ -126,7 +126,9 @@
   ```shell
   git clone https://github.com/heshengtao/super-agent-party.git
   cd super-agent-party
-  uv sync && npm install && (cd static && npm install) && npm run dev
+  uv sync
+  npm install
+  npm run dev
   ```
 
 ## 软件截图
