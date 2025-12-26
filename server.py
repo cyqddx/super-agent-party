@@ -2840,7 +2840,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                         metadata = {
                             "timetamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         }
-                        func = partial(m0.add, user_id=memoryId,metadata=metadata)
+                        func = partial(m0.add, user_id=memoryId,metadata=metadata,infer=False)
                         # 传递 messages 作为位置参数
                         await loop.run_in_executor(executor, func, messages)
                         print("知识库更新完成")
