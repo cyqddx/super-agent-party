@@ -17,7 +17,7 @@
   <a href="https://gcnij7egmcww.feishu.cn/wiki/DPRKwdetCiYBhPkPpXWcugujnRc"><img src="https://img.shields.io/badge/中文使用指南-飞书文档-00CDCD?style=for-the-badge&logo=docsdotrs"/></a>
   <a href="https://temporal-lantern-7e8.notion.site/super-agent-party-211b2b2cb6f180c899d1c27a98c4965d"><img src="https://img.shields.io/badge/English%20Guide-Notion-000000?style=for-the-badge&logo=notion"/></a>
   <a href="https://pan.baidu.com/share/init?surl=VBSnq4Ga3fRX_NcyPwsV7Q&pwd=2333"><img src="https://img.shields.io/badge/网盘下载-百度网盘-2E58D4?style=for-the-badge&logo=baidu"/></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Quick%20Start-Local-0052CC?style=for-the-badge&logo=github"/></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Quick%20Start-Download-0052CC?style=for-the-badge&logo=github"/></a>
 </div>
 
 ## Introduction
