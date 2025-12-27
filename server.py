@@ -15,6 +15,81 @@ import tempfile
 import httpx
 import websockets
 from py.load_files import get_file_content
+def fix_macos_environment():
+    """
+    专门修复 macOS 下找不到 node (nvm) 和 uv (python framework) 的问题
+    """
+    if sys.platform != 'darwin':
+        return
+
+    user_home = Path.home()
+    paths_to_add = []
+
+    # ---------------------------------------------------------
+    # 1. 自动发现 NVM 安装的 Node.js
+    # 路径通常是: ~/.nvm/versions/node/vX.X.X/bin
+    # ---------------------------------------------------------
+    nvm_path = user_home / ".nvm" / "versions" / "node"
+    if nvm_path.exists():
+        # 获取所有版本文件夹 (如 v20.19.5, v18.0.0)
+        # 使用 glob 匹配所有 v 开头的文件夹
+        node_versions = sorted(nvm_path.glob("v*"), key=lambda p: p.name, reverse=True)
+        
+        # 将所有版本的 bin 目录都加入，或者只加最新的
+        for version_dir in node_versions:
+            bin_path = version_dir / "bin"
+            if bin_path.exists():
+                paths_to_add.append(str(bin_path))
+                # 如果只想用最新的 node，这里可以 break
+                # break 
+
+    # ---------------------------------------------------------
+    # 2. 自动发现 Python Framework 中的 uv
+    # 路径通常是: /Library/Frameworks/Python.framework/Versions/X.X/bin
+    # ---------------------------------------------------------
+    py_framework_path = Path("/Library/Frameworks/Python.framework/Versions")
+    if py_framework_path.exists():
+        # 查找所有版本，如 3.13, 3.12
+        py_versions = py_framework_path.glob("*")
+        for ver in py_versions:
+            bin_path = ver / "bin"
+            if bin_path.exists():
+                paths_to_add.append(str(bin_path))
+
+    # ---------------------------------------------------------
+    # 3. 补充 macOS 常见的其他路径 (Homebrew, Cargo, Local)
+    # uv 也经常被安装在 .local/bin 或 .cargo/bin 下
+    # ---------------------------------------------------------
+    common_extras = [
+        "/opt/homebrew/bin",           # Apple Silicon Mac Homebrew
+        "/usr/local/bin",              # Intel Mac Homebrew
+        str(user_home / ".local" / "bin"), # 用户级安装通常在这里
+        str(user_home / ".cargo" / "bin"), # Rust 工具链 (uv 可能在这里)
+    ]
+    paths_to_add.extend(common_extras)
+
+    # ---------------------------------------------------------
+    # 4. 将发现的路径注入到当前进程的环境变量中
+    # ---------------------------------------------------------
+    current_path = os.environ.get("PATH", "")
+    new_path_str = current_path
+    
+    # 将新路径加到最前面 (优先级最高)
+    for p in paths_to_add:
+        if p and os.path.isdir(p):
+            # 避免重复添加
+            if p not in new_path_str:
+                new_path_str = p + os.pathsep + new_path_str
+    
+    # 更新环境变量
+    os.environ['PATH'] = new_path_str
+    
+    # (可选) 打印调试信息
+    # print(f"Fixed macOS PATH. Added: {paths_to_add}")
+
+# --- 在程序最开始的地方调用这个函数 ---
+fix_macos_environment()
+
 # 在程序最开始设置
 if hasattr(sys, '_MEIPASS'):
     # 打包后的程序

@@ -50,3 +50,4 @@ lark_oapi
 pydub
 imageio_ffmpeg
 discord.py
+xlrd
