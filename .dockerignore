@@ -5,8 +5,6 @@ super/
 __pycache__
 .DS_Store
 release/
-build/
-dist/
 test/
 uploaded_files/
 kb/
