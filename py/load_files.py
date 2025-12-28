@@ -362,16 +362,70 @@ async def handle_excel(content):
     return await loop.run_in_executor(None, _process_excel, content)
 
 def _process_excel(content):
-    """同步处理Excel内容"""
+    """同步处理Excel内容（支持多Sheet，兼容xlsx和xls）"""
+    text_content = []
+    
+    # 1. 优先尝试使用 openpyxl (针对 .xlsx, .xlsm)
     try:
+        # data_only=True 读取公式计算后的值而不是公式本身
         wb = load_workbook(filename=BytesIO(content), read_only=True, data_only=True)
-        text = []
+        
         for sheet in wb:
+            # 添加 Sheet 名称作为分隔符，方便区分
+            sheet_data = [f"=== Sheet: {sheet.title} ==="]
+            
+            # 判断 Sheet 是否隐藏（可选，根据需求保留或删除）
+            if sheet.sheet_state == 'hidden':
+                continue
+
+            row_count = 0
             for row in sheet.iter_rows(values_only=True):
-                text.append('\t'.join(str(cell) if cell is not None else '' for cell in row))
-        return '\n'.join(text)
-    except Exception as e:
-        raise RuntimeError(f"Excel解析失败: {str(e)}")
+                # 过滤全空的行
+                if not any(row):
+                    continue
+                
+                # 处理单元格内容，None转为空字符串
+                row_text = '\t'.join(str(cell) if cell is not None else '' for cell in row)
+                sheet_data.append(row_text)
+                row_count += 1
+            
+            # 只有当该 Sheet 有有效数据行时才添加
+            if row_count > 0:
+                text_content.append('\n'.join(sheet_data))
+                
+        return '\n\n'.join(text_content)
+
+    except Exception as e_xlsx:
+        # 2. 如果 openpyxl 失败（通常是因为文件是 .xls 格式），尝试使用 xlrd
+        try:
+            import xlrd
+            # log: print(f"openpyxl 解析失败，尝试使用 xlrd 解析: {e_xlsx}")
+            
+            # formatting_info=True 可能会导致部分复杂文件读取失败，设为 False 更稳健
+            wb = xlrd.open_workbook(file_contents=content, formatting_info=False)
+            
+            for sheet in wb.sheets():
+                sheet_data = [f"=== Sheet: {sheet.name} ==="]
+                
+                if sheet.nrows == 0:
+                    continue
+                    
+                for row_idx in range(sheet.nrows):
+                    row = sheet.row_values(row_idx)
+                    # xlrd 读取的日期可能是浮点数，这里简单处理，如需精确日期需配合 xldate_as_tuple
+                    row_text = '\t'.join(str(cell) for cell in row)
+                    if row_text.strip():
+                        sheet_data.append(row_text)
+                
+                text_content.append('\n'.join(sheet_data))
+                
+            return '\n\n'.join(text_content)
+            
+        except ImportError:
+            raise RuntimeError(f"检测到可能为 .xls 格式，但未安装 xlrd 库。请运行: pip install xlrd==1.2.0 (注意新版xlrd不支持xlsx，建议安装旧版处理xls或仅用于处理xls)")
+        except Exception as e_xls:
+            # 如果两个库都失败了，抛出汇总异常
+            raise RuntimeError(f"Excel解析失败. xlsx模式错误: {e_xlsx}, xls模式错误: {e_xls}")
 
 async def handle_rtf(content):
     """异步处理RTF文件"""
