@@ -8013,11 +8013,22 @@ resumeRead() {
         SampleText ='super agent party链接一切！'
       }
 
-      try {
-        let Settings = this.ttsSettings;
-        if (this.showAddTTSDialog){
-          Settings = {...this.ttsSettings, ...this.newTTSConfig};
-        }
+    try {
+      // 创建副本，避免直接修改 this.ttsSettings
+      let Settings = { ...this.ttsSettings };
+
+      if (this.showAddTTSDialog) {
+        Settings = { ...Settings, ...this.newTTSConfig };
+      } else if (voice !== 'default' && this.ttsSettings.newtts && this.ttsSettings.newtts[voice]) {
+        // 从角色语音卡片调用：合并角色配置
+        Settings = { ...Settings, ...this.ttsSettings.newtts[voice] };
+      }
+
+      // ★ 关键修复：附带 modelProviders，供后端查找 API Key
+      // 后端逻辑：如果角色配置缺少api_key但有selectedProvider，会从这里查找
+      if (this.modelProviders && Array.isArray(this.modelProviders)) {
+        Settings.modelProviders = this.modelProviders;
+      }
 
         const res = await fetch('/tts', {
           method: 'POST',
