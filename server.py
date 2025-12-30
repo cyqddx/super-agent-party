@@ -1,5 +1,6 @@
 # -- coding: utf-8 --
 import sys
+import traceback
 sys.stdout.reconfigure(encoding='utf-8')
 import base64
 from datetime import datetime
@@ -4142,6 +4143,45 @@ async def simple_chat_endpoint(request: ChatRequest):
         media_type="text/plain",      # 也可以保持 "text/event-stream"
         headers={"Cache-Control": "no-cache"}
     )
+
+@app.get("/rss_proxy")
+async def rss_proxy_endpoint(url: str):
+    """
+    后端代理接口：带详细的代理调试日志
+    """
+    # 1. 打印当前的代理环境变量，确认是否生效
+    http_proxy = os.environ.get("http_proxy")
+    https_proxy = os.environ.get("https_proxy")
+    print(f"--- [RSS Proxy Debug] ---")
+    print(f"Target URL: {url}")
+    print(f"Env http_proxy: {http_proxy}")
+    print(f"Env https_proxy: {https_proxy}")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    # 2. 显式配置 trust_env=True (虽然是默认值，但强调一下)
+    async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=30.0, trust_env=True) as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            print(f"Response Status: {resp.status_code}")
+            
+            if resp.status_code != 200:
+                return Response(content=resp.content, status_code=resp.status_code, media_type="text/plain")
+
+            return Response(content=resp.content, media_type="application/xml")
+
+        except httpx.ConnectError as e:
+            # 专门捕获连接错误
+            err_msg = f"连接失败 (ConnectError)。原因可能是：1. 没开代理且目标被墙 2. 代理端口配置错误。详细: {e}"
+            print(f"[RSS Proxy Error] {err_msg}")
+            return Response(content=f"<error>{err_msg}</error>", status_code=502, media_type="text/xml")
+            
+        except Exception as e:
+            print(f"[RSS Proxy Error] Other: {repr(e)}")
+            traceback.print_exc()
+            return Response(content=f"<error>{str(e)}</error>", status_code=500, media_type="text/xml")
 
 # 存储活跃的ASR WebSocket连接
 asr_connections = []
