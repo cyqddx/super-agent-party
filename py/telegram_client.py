@@ -354,13 +354,13 @@ class TelegramClient:
 
     def _clean_text(self, text):
         """清理文本中的特殊标记"""
-        # # 移除图片标记
-        # clean = re.sub(r'!\[.*?\]\(.*?\)', '', text)
-        # # 移除超链接
-        # clean = re.sub(r'\[.*?\]\(.*?\)', '', clean)
-        # # 移除纯URL
-        # clean = re.sub(r'https?://\S+', '', clean)
-        return text
+        # 移除图片标记
+        clean = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+        # 移除超链接
+        clean = re.sub(r'\[.*?\]\(.*?\)', '', clean)
+        # 移除纯URL
+        clean = re.sub(r'https?://\S+', '', clean)
+        return clean.strip()
 
     def _extract_images(self, full_text: str, state: dict):
         for m in re.finditer(r"!\[.*?\]\((https?://[^\s)]+)", full_text):

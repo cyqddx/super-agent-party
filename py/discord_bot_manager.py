@@ -304,10 +304,10 @@ class DiscordClient(discord.Client):
                 return res.get("text") if res.get("success") else None
 
     def _clean_text(self, text: str) -> str:
-        # text = re.sub(r"!\[.*?\]\(.*?\)", "", text)
-        # text = re.sub(r"\[.*?\]\(.*?\)", "", text)
-        # text = re.sub(r"https?://\S+", "", text)
-        return text
+        text = re.sub(r"!\[.*?\]\(.*?\)", "", text)
+        text = re.sub(r"\[.*?\]\(.*?\)", "", text)
+        text = re.sub(r"https?://\S+", "", text)
+        return text.strip()
 
     def clean_markdown(self, buffer):
         # Remove heading marks (#, ##, ### etc.)

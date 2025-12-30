@@ -1142,13 +1142,13 @@ class FeishuClient:
     
     def _clean_text(self, text):
         """清理文本中的特殊标记"""
-        # # 移除图片标记
-        # clean = re.sub(r'!\[.*?\]\(.*?\)', '', text)
-        # # 移除超链接
-        # clean = re.sub(r'\[.*?\]\(.*?\)', '', clean)
-        # # 移除纯URL
-        # clean = re.sub(r'https?://\S+', '', clean)
-        return text
+        # 移除图片标记
+        clean = re.sub(r'!\[.*?\]\(.*?\)', '', text)
+        # 移除超链接
+        clean = re.sub(r'\[.*?\]\(.*?\)', '', clean)
+        # 移除纯URL
+        clean = re.sub(r'https?://\S+', '', clean)
+        return clean.strip()
     
     async def _send_text(self, original_msg, text):
         """发送文本消息"""
