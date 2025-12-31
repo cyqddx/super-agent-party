@@ -637,6 +637,7 @@ app.whenReady().then(async () => {
           nodeIntegration: false,
           sandbox: false,
           webSecurity: false,
+          webviewTag: true,
           devTools: isDev,
           preload: path.join(__dirname, 'static/js/preload.js')
         }
@@ -688,7 +689,7 @@ app.whenReady().then(async () => {
       const windowHeight = windowConfig.height || 960;
 
       const x = windowConfig.x !== undefined ? windowConfig.x : width - windowWidth - 40;
-      const y = windowConfig.y !== undefined ? windowConfig.y : 0;
+      const y = windowConfig.y !== undefined ? windowConfig.y : height - windowHeight;
 
       const vrmWindow = new BrowserWindow({
         width: windowWidth,
