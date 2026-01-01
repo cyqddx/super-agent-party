@@ -4144,44 +4144,67 @@ async def simple_chat_endpoint(request: ChatRequest):
         headers={"Cache-Control": "no-cache"}
     )
 
-@app.get("/rss_proxy")
-async def rss_proxy_endpoint(url: str):
+@app.api_route("/extension_proxy", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+async def extension_proxy_endpoint(request: Request):
     """
-    后端代理接口：带详细的代理调试日志
+    通用代理接口：支持任意 URL、Method、Headers
+    解决前端跨域问题 (CORS)
     """
-    # 1. 打印当前的代理环境变量，确认是否生效
-    http_proxy = os.environ.get("http_proxy")
-    https_proxy = os.environ.get("https_proxy")
-    print(f"--- [RSS Proxy Debug] ---")
-    print(f"Target URL: {url}")
-    print(f"Env http_proxy: {http_proxy}")
-    print(f"Env https_proxy: {https_proxy}")
+    url = request.query_params.get("url")
+    if not url:
+        return Response(content="Missing 'url' parameter", status_code=400)
 
-    headers = {
+    # 获取请求方法
+    method = request.method
+    
+    # 获取 Body (如果有)
+    body = await request.body()
+    
+    # 处理 Headers
+    # 1. 过滤掉 host, content-length 等可能导致冲突的头
+    # 2. 允许前端通过 query param 传递额外的 headers (JSON格式)，或者直接透传 header
+    excluded_headers = ['host', 'content-length', 'connection', 'accept-encoding']
+    proxy_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
+    
+    # 如果前端在 query 中传了 custom_headers (JSON字符串)
+    custom_headers_str = request.query_params.get("headers")
+    if custom_headers_str:
+        try:
+            proxy_headers.update(json.loads(custom_headers_str))
+        except:
+            pass
 
-    # 2. 显式配置 trust_env=True (虽然是默认值，但强调一下)
+    # 打印调试日志
+    print(f"--- [Extension Proxy] ---")
+    print(f"Method: {method} | URL: {url}")
+    print(f"Proxy Headers: {proxy_headers}")
+
     async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=30.0, trust_env=True) as client:
         try:
-            resp = await client.get(url, headers=headers)
+            resp = await client.request(
+                method=method,
+                url=url,
+                headers=proxy_headers,
+                content=body if body else None
+            )
+            
             print(f"Response Status: {resp.status_code}")
             
-            if resp.status_code != 200:
-                return Response(content=resp.content, status_code=resp.status_code, media_type="text/plain")
+            # 将响应透传回前端
+            # 注意：某些响应头可能需要过滤
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type=resp.headers.get("content-type", "application/octet-stream")
+            )
 
-            return Response(content=resp.content, media_type="application/xml")
-
-        except httpx.ConnectError as e:
-            # 专门捕获连接错误
-            err_msg = f"连接失败 (ConnectError)。原因可能是：1. 没开代理且目标被墙 2. 代理端口配置错误。详细: {e}"
-            print(f"[RSS Proxy Error] {err_msg}")
-            return Response(content=f"<error>{err_msg}</error>", status_code=502, media_type="text/xml")
-            
         except Exception as e:
-            print(f"[RSS Proxy Error] Other: {repr(e)}")
+            err_msg = f"Proxy Error: {str(e)}"
+            print(f"[Extension Proxy Error] {err_msg}")
             traceback.print_exc()
-            return Response(content=f"<error>{str(e)}</error>", status_code=500, media_type="text/xml")
+            return Response(content=f"<error>{err_msg}</error>", status_code=502, media_type="text/plain")
 
 # 存储活跃的ASR WebSocket连接
 asr_connections = []
