@@ -4143,68 +4143,66 @@ async def simple_chat_endpoint(request: ChatRequest):
         media_type="text/plain",      # 也可以保持 "text/event-stream"
         headers={"Cache-Control": "no-cache"}
     )
-
 @app.api_route("/extension_proxy", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-async def extension_proxy_endpoint(request: Request):
+async def extension_proxy(request: Request, url: str):
     """
-    通用代理接口：支持任意 URL、Method、Headers
-    解决前端跨域问题 (CORS)
+    通用代理接口：支持任意方法、Header转发，解决跨域问题。
+    支持 RSSHub API (JSON) 和 RSS Feed (XML)
     """
-    url = request.query_params.get("url")
-    if not url:
-        return Response(content="Missing 'url' parameter", status_code=400)
-
-    # 获取请求方法
+    # 1. 获取原始请求的方法和Body
     method = request.method
-    
-    # 获取 Body (如果有)
     body = await request.body()
     
-    # 处理 Headers
-    # 1. 过滤掉 host, content-length 等可能导致冲突的头
-    # 2. 允许前端通过 query param 传递额外的 headers (JSON格式)，或者直接透传 header
-    excluded_headers = ['host', 'content-length', 'connection', 'accept-encoding']
-    proxy_headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    # 2. 构造 Header (过滤掉 host 以免混淆)
+    excluded_headers = {'host', 'content-length'}
+    headers = {
+        k: v for k, v in request.headers.items() 
+        if k.lower() not in excluded_headers
     }
-    
-    # 如果前端在 query 中传了 custom_headers (JSON字符串)
-    custom_headers_str = request.query_params.get("headers")
-    if custom_headers_str:
-        try:
-            proxy_headers.update(json.loads(custom_headers_str))
-        except:
-            pass
+    # 强制设置 UA，防止被某些源拦截
+    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    # 打印调试日志
+    # 3. 打印调试日志
     print(f"--- [Extension Proxy] ---")
-    print(f"Method: {method} | URL: {url}")
-    print(f"Proxy Headers: {proxy_headers}")
-
+    print(f"Target: {url} | Method: {method}")
+    
     async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=30.0, trust_env=True) as client:
         try:
+            # 发起代理请求
             resp = await client.request(
                 method=method,
                 url=url,
-                headers=proxy_headers,
-                content=body if body else None
+                headers=headers,
+                content=body
             )
             
-            print(f"Response Status: {resp.status_code}")
+            print(f"Proxy Response: {resp.status_code}")
             
-            # 将响应透传回前端
-            # 注意：某些响应头可能需要过滤
+            # 透传响应头 (过滤掉部分可能引起冲突的头)
+            resp_headers = {
+                k: v for k, v in resp.headers.items()
+                if k.lower() not in {'content-encoding', 'content-length', 'transfer-encoding'}
+            }
+            
             return Response(
                 content=resp.content,
                 status_code=resp.status_code,
+                headers=resp_headers,
                 media_type=resp.headers.get("content-type", "application/octet-stream")
             )
 
+        except httpx.ConnectError as e:
+            err_msg = f"Proxy Connect Error: {e}"
+            print(f"[Proxy Error] {err_msg}")
+            # 如果是 API 请求，返回 JSON 错误；如果是 RSS 请求，返回 XML 错误
+            if "json" in request.headers.get("accept", ""):
+                 return Response(content=f'{{"error": "{err_msg}"}}', status_code=502, media_type="application/json")
+            return Response(content=f"<error>{err_msg}</error>", status_code=502, media_type="text/xml")
+            
         except Exception as e:
-            err_msg = f"Proxy Error: {str(e)}"
-            print(f"[Extension Proxy Error] {err_msg}")
+            print(f"[Proxy Error] System: {repr(e)}")
             traceback.print_exc()
-            return Response(content=f"<error>{err_msg}</error>", status_code=502, media_type="text/plain")
+            return Response(content=str(e), status_code=500)
 
 # 存储活跃的ASR WebSocket连接
 asr_connections = []
