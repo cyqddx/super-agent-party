@@ -5226,7 +5226,7 @@ async def text_to_speech(request: Request):
             async def generate_audio():
                 safe_tts_url = sanitize_url(
                     input_url=custom_tt_server,
-                    default_base="http://localhost:5000", # 这里填你代码里原本的默认 TTS 地址
+                    default_base="http://127.0.0.1:9880", # 这里填你代码里原本的默认 TTS 地址
                     endpoint=""  # 因为 TTS URL 通常已经包含了路径
                 )
                 async with httpx.AsyncClient(timeout=60.0) as client:
@@ -5318,9 +5318,14 @@ async def text_to_speech(request: Request):
             gsvServer = gsvServer_list[index % len(gsvServer_list)]
                 
             async def generate_audio():
+                safe_tts_url = sanitize_url(
+                    input_url=gsvServer,
+                    default_base="http://127.0.0.1:9880", # 这里填你代码里原本的默认 TTS 地址
+                    endpoint="/tts"  # 因为 TTS URL 通常已经包含了路径
+                )
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     try:
-                        async with client.stream("POST", f"{gsvServer}/tts", json=gsv_params) as response:
+                        async with client.stream("POST", safe_tts_url, json=gsv_params) as response:
                             response.raise_for_status()
                             # 直接流式返回，不管目标格式（假设GSV的ogg内部是opus编码）
                             async for chunk in response.aiter_bytes():
