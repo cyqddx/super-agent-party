@@ -1267,19 +1267,20 @@ let vue_methods = {
         else if (data.type === 'update_user_input') {
           this.userInput = data.data.text;
         }
-        // 新增：处理系统消息更新
+        // 更新或添加提示词
         else if (data.type === 'update_system_prompt') {
-          if (this.messages[0].role === 'system') {
-            this.messages[0].content = data.data.text
-          }else{
-            this.messages.unshift(
-              { 
-                "role": "system",
-                "content": data.data.text
-              }
-            )
-          }
-
+            const id = data.data.id;
+            const text = data.data.text;
+            this.extensionsSystemPromptsDict[id] = text; 
+        }
+        
+        // 移除提示词 (对应后端 finally 中的逻辑)
+        else if (data.type === 'remove_system_prompt') {
+            const id = data.data.id;
+            
+            if (this.extensionsSystemPromptsDict[id]) {
+                delete this.extensionsSystemPromptsDict[id];
+            }
         }
         // 新增：处理工具输入
         else if (data.type === 'update_user_input') {
@@ -1667,6 +1668,20 @@ let vue_methods = {
         }
       }
       await this.saveConversations();
+      // 插入this.extensionsSystemPromptsDict到系统消息中
+      if(this.extensionsSystemPromptsDict){
+        // 去重并拼接所有的提示词
+        const combinedPrompt = Object.values(this.extensionsSystemPromptsDict).filter(Boolean).join('\n\n');
+        console.log(combinedPrompt);
+        // 如果第一个消息时system
+        if (messages[0].role === 'system') {
+          // 将combinedPrompt添加到第一个消息的内容中
+          messages[0].content += '\n\n' + combinedPrompt;
+        } else {
+          // 否则，将combinedPrompt添加到消息列表的开头
+          messages.unshift({ role: 'system', content: combinedPrompt });
+        }
+      }
       try {
         console.log('Sending message...');
         // 请求参数需要与后端接口一致
@@ -2279,10 +2294,6 @@ let vue_methods = {
     async clearMessages() {
       this.stopGenerate();
       this.messages = [{ role: 'system', content: this.system_prompt }];
-      // extension.systemPrompt填充到this.messages[0].content
-      if (this.currentExtension) {
-        this.messages[0].content = this.currentExtension.systemPrompt;
-      }
       this.conversationId = null;
       this.fileLinks = [];
       this.isThinkOpen = false; // 重置思考模式状态
@@ -10230,9 +10241,6 @@ clearSegments() {
     this.sidePanelURL = '';
     this.showExtensionsDialog = false; // 关闭对话框
     this.currentExtension = extension;
-    if (this.currentExtension.systemPrompt){
-      this.messages[0].content = this.currentExtension.systemPrompt;
-    }
     this.expandSidePanel();
     await this.loadExtension(extension);
   },

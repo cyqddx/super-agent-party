@@ -72,6 +72,7 @@ let vue_data = {
     updateIcon: 'fa-solid fa-download',
     system_prompt: ' ',
     SystemPromptsList: [],          // 系统提示词数组
+    extensionsSystemPromptsDict: {}, // 扩展提示词字典
     showPromptDialog: false,        // 对话框显隐
     promptForm: {                   // 对话框绑定
       id: null,

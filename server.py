@@ -7382,24 +7382,31 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     active_connections.append(websocket)
 
+    # [关键点 1] 为当前连接生成唯一ID
+    connection_id = str(shortuuid.ShortUUID().random(length=8))
+    # 标记该连接是否发送过提示词（用于判断断开时是否需要发送移除指令）
+    has_sent_prompt = False
+
     try:
-        async with settings_lock:  # 读取时加锁
+        async with settings_lock:
             current_settings = await load_settings()
-            if current_settings.get("conversations",None):
+            if current_settings.get("conversations", None):
                 await save_covs({"conversations": current_settings["conversations"]})
-                # 移除settings中的"conversations"
                 del current_settings["conversations"]
                 await save_settings(current_settings)
             covs = await load_covs()
             current_settings["conversations"] = covs.get("conversations", [])
+        
         await websocket.send_json({"type": "settings", "data": current_settings})
+        
         while True:
             data = await websocket.receive_json()
+            
+            # --- 常规逻辑保持不变 ---
             if data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
             elif data.get("type") == "save_settings":
                 await save_settings(data.get("data", {}))
-                # 发送确认消息（携带相同 correlationId）
                 await websocket.send_json({
                     "type": "settings_saved",
                     "correlationId": data.get("correlationId"),
@@ -7407,7 +7414,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
             elif data.get("type") == "save_conversations":
                 await save_covs(data.get("data", {}))
-                # 发送确认消息（携带相同 correlationId）
                 await websocket.send_json({
                     "type": "conversations_saved",
                     "correlationId": data.get("correlationId"),
@@ -7415,26 +7421,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
             elif data.get("type") == "get_settings":
                 settings = await load_settings()
-                if settings.get("conversations",None):
+                if settings.get("conversations", None):
                     await save_covs({"conversations": settings["conversations"]})
-                    # 移除settings中的"conversations"
                     del settings["conversations"]
                     await save_settings(settings)
                 covs = await load_covs()
-                print("covs"+covs)
                 settings["conversations"] = covs.get("conversations", [])
                 await websocket.send_json({"type": "settings", "data": settings})
             elif data.get("type") == "save_agent":
                 current_settings = await load_settings()
-                
-                # 生成智能体ID和配置路径
                 agent_id = str(shortuuid.ShortUUID().random(length=8))
                 config_path = os.path.join(AGENT_DIR, f"{agent_id}.json")
-                
                 with open(config_path, 'w', encoding='utf-8') as f:
                     json.dump(current_settings, f, indent=4, ensure_ascii=False)
-                
-                # 更新主配置
                 current_settings['agents'][agent_id] = {
                     "id": agent_id,
                     "name": data['data']['name'],
@@ -7443,71 +7442,60 @@ async def websocket_endpoint(websocket: WebSocket):
                     "enabled": False,
                 }
                 await save_settings(current_settings)
-                
-                # 广播更新后的配置
-                await websocket.send_json({
-                    "type": "settings",
-                    "data": current_settings
-                })
-            # 新增：处理扩展页面发送的用户输入
+                await websocket.send_json({"type": "settings", "data": current_settings})
+            
             elif data.get("type") == "set_user_input":
                 user_input = data.get("data", {}).get("text", "")
-                # 广播给所有连接的客户端
                 for connection in active_connections:
                     await connection.send_json({
                         "type": "update_user_input",
                         "data": {"text": user_input}
                     })
-            
-            # 新增：处理扩展页面发送的系统提示
+
+            # --- [关键修改] 处理扩展页面发送的系统提示 ---
             elif data.get("type") == "set_system_prompt":
+                has_sent_prompt = True # 标记该连接为扩展源
                 extension_system_prompt = data.get("data", {}).get("text", "")
-                # 广播给所有连接的客户端
+                
+                # 广播时携带 connection_id
                 for connection in active_connections:
                     await connection.send_json({
                         "type": "update_system_prompt",
-                        "data": {"text": extension_system_prompt}
+                        "data": {
+                            "id": connection_id,      # 这里传入连接ID
+                            "text": extension_system_prompt
+                        }
                     })
 
-            # 新增：处理扩展页面发送的工具结果并直接发送，不用额外触发send_message
             elif data.get("type") == "set_tool_input":
                 tool_input = data.get("data", {}).get("text", "")
-                # 广播给所有连接的客户端
                 for connection in active_connections:
                     await connection.send_json({
                         "type": "update_tool_input",
                         "data": {"text": tool_input}
                     })
 
-            # 新增：处理扩展页面发送的关闭窗口
             elif data.get("type") == "trigger_close_extension":
-                extension_system_prompt = data.get("data", {}).get("text", "")
-                # 广播给所有连接的客户端
                 for connection in active_connections:
                     await connection.send_json({
                         "type": "trigger_close_extension",
                         "data": {}
                     })
 
-            # 新增：处理扩展页面请求发送消息
             elif data.get("type") == "trigger_send_message":
-                # 广播给所有连接的客户端
                 for connection in active_connections:
                     await connection.send_json({
                         "type": "trigger_send_message",
                         "data": {}
                     })
                     
-            # 新增：清空消息
             elif data.get("type") == "trigger_clear_message":
-                # 广播给所有连接的客户端
                 for connection in active_connections:
                     await connection.send_json({
                         "type": "trigger_clear_message",
                         "data": {}
                     })
 
-            # 新增：请求获取最新消息
             elif data.get("type") == "get_messages":
                 for connection in active_connections:
                     await connection.send_json({
@@ -7517,16 +7505,34 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif data.get("type") == "broadcast_messages":
                 messages_data = data.get("data", {})
-                # 广播给除发送者外的所有连接
                 for connection in [conn for conn in active_connections if conn != websocket]:
                     await connection.send_json({
                         "type": "messages_update",
                         "data": messages_data
                     })
+
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
-        active_connections.remove(websocket)
+        if websocket in active_connections:
+            active_connections.remove(websocket)
+        
+        # --- [关键修改] 连接断开时的处理 ---
+        # 只有当该连接曾经发送过 update_system_prompt 时才触发
+        # 避免普通客户端断开时误删内容
+        if has_sent_prompt:
+            print(f"Extension {connection_id} disconnected. Removing prompt.")
+            for connection in active_connections:
+                try:
+                    # 发送移除指令，只携带 ID
+                    await connection.send_json({
+                        "type": "remove_system_prompt",
+                        "data": {
+                            "id": connection_id 
+                        }
+                    })
+                except Exception:
+                    pass
 
 from py.uv_api import router as uv_router
 app.include_router(uv_router)
