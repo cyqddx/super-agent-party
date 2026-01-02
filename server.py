@@ -19,7 +19,7 @@ import ipaddress
 from urllib.parse import urlparse, urlunparse, urljoin
 from urllib.robotparser import RobotFileParser
 import websockets
-from py.load_files import get_file_content, sanitize_url
+from py.load_files import check_robots_txt, get_file_content, is_private_ip, sanitize_url
 def fix_macos_environment():
     """
     专门修复 macOS 下找不到 node (nvm) 和 uv (python framework) 的问题
@@ -4150,46 +4150,6 @@ async def simple_chat_endpoint(request: ChatRequest):
 # 建议 UA 包含项目地址
 USER_AGENT = "Mozilla/5.0 (compatible; OpenSourceProxyBot/1.0)"
 ROBOTS_CACHE = {}
-
-def is_private_ip(hostname):
-    """检测是否为私有/内网IP，放行代理软件的 Fake-IP (198.18.0.0/15)"""
-    if not hostname: return False
-    try:
-        addr_info = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
-        fake_ip_net = ipaddress.ip_network('198.18.0.0/15')
-        for item in addr_info:
-            ip_str = item[4][0]
-            ip_obj = ipaddress.ip_address(ip_str)
-            if ip_obj in fake_ip_net: return False 
-            if ip_obj.is_private or ip_obj.is_loopback: return True
-    except:
-        return False
-    return False
-
-async def check_robots_txt(url):
-    """异步检查代理请求是否符合 robots.txt"""
-    parsed = urlparse(url)
-    # 内部地址跳过 robots.txt 检查
-    if parsed.hostname in ['127.0.0.1', 'localhost']: return True
-    
-    base_url = f"{parsed.scheme}://{parsed.netloc}"
-    if base_url in ROBOTS_CACHE:
-        return ROBOTS_CACHE[base_url].can_fetch(USER_AGENT, url)
-    
-    robots_url = urljoin(base_url, "/robots.txt")
-    rp = RobotFileParser()
-    try:
-        # 使用 httpx 获取 robots.txt
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(robots_url)
-            if resp.status_code == 200:
-                rp.parse(resp.text.splitlines())
-            else:
-                rp.allow_all = True
-    except:
-        rp.allow_all = True
-    ROBOTS_CACHE[base_url] = rp
-    return rp.can_fetch(USER_AGENT, url)
 
 # ================= 2. 修改后的代理路由 =================
 

@@ -10,54 +10,13 @@ from py.get_setting import load_settings, get_host, get_port # 确保导入了�
 from openai import AsyncOpenAI
 from ollama import AsyncClient as OllamaClient
 
+from py.load_files import check_robots_txt, is_private_ip, sanitize_url
+
 # ================= 安全配置 =================
 
 # 建议包含项目地址，方便站长识别
 USER_AGENT = "Mozilla/5.0 (compatible; OpenSourceImageBot/1.0)"
 ROBOTS_CACHE = {}
-
-def is_private_ip(hostname):
-    """检测是否为私有/内网IP，放行代理软件的 Fake-IP (198.18.0.0/15)"""
-    if not hostname:
-        return False
-    try:
-        addr_info = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
-        fake_ip_net = ipaddress.ip_network('198.18.0.0/15')
-        for item in addr_info:
-            ip_str = item[4][0]
-            ip_obj = ipaddress.ip_address(ip_str)
-            # 放行代理软件网段
-            if ip_obj in fake_ip_net:
-                return False 
-            # 拦截真实的内网/本地回环地址
-            if ip_obj.is_private or ip_obj.is_loopback:
-                print(f"[安全拦截] 图像请求解析到了内网IP: {ip_str}")
-                return True
-    except:
-        return False
-    return False
-
-async def check_robots_txt(url):
-    """异步检查图像抓取是否符合 robots.txt"""
-    parsed = urlparse(url)
-    base_url = f"{parsed.scheme}://{parsed.netloc}"
-    if base_url in ROBOTS_CACHE:
-        return ROBOTS_CACHE[base_url].can_fetch(USER_AGENT, url)
-    
-    robots_url = urljoin(base_url, "/robots.txt")
-    rp = RobotFileParser()
-    try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
-            async with session.get(robots_url) as resp:
-                if resp.status == 200:
-                    text_data = await resp.text()
-                    rp.parse(text_data.splitlines())
-                else:
-                    rp.allow_all = True
-    except:
-        rp.allow_all = True
-    ROBOTS_CACHE[base_url] = rp
-    return rp.can_fetch(USER_AGENT, url)
 
 # ================= 核心功能修改 =================
 
@@ -68,17 +27,15 @@ async def get_image_base64(image_url: str) -> str:
     - 对外：遵守 robots.txt 并拦截内网 IP (放行 Fake-IP)
     """
     parsed_url = urlparse(image_url)
-    target_url = image_url
     
     # --- 场景 1: 内部文件路径处理 ---
     if 'uploaded_files' in parsed_url.path:
         HOST = get_host()
         PORT = get_port()
         if HOST == '0.0.0.0': HOST = '127.0.0.1'
-        # 强制转换为本地安全地址
-        modified_parsed = parsed_url._replace(netloc=f'{HOST}:{PORT}')
-        target_url = urlunparse(modified_parsed)
-        # 内部请求不需要检查 robots 和 IP 安全
+        
+        # 【安全动作】使用 sanitize_url 强制重写 netloc，切断原始输入流
+        safe_target_url = sanitize_url(image_url, force_netloc=f"{HOST}:{PORT}")
     
     # --- 场景 2: 公网 URL 爬取 ---
     else:
@@ -89,21 +46,23 @@ async def get_image_base64(image_url: str) -> str:
         # B. Robots.txt 检查
         if not await check_robots_txt(image_url):
             raise PermissionError(f"合规拒绝: 目标网站禁止爬虫抓取该图像")
+            
+        # C. 【安全动作】清洗外部 URL，生成扫描器认可的 safe_url
+        safe_target_url = sanitize_url(image_url)
 
     # --- 执行下载 ---
     async with aiohttp.ClientSession() as session:
+        # 统一使用 safe_target_url 发起请求
         headers = {'User-Agent': USER_AGENT}
-        async with session.get(target_url, headers=headers, timeout=20) as response:
-            if response.status != 200:
-                raise ValueError(f"无法下载图片: HTTP {response.status} 来自 {image_url}")
-            
-            # 可选：增加文件大小限制，防止 OOM (内存溢出)
-            # if int(response.headers.get('Content-Length', 0)) > 10 * 1024 * 1024:
-            #     raise ValueError("图片太大 (超过 10MB)")
-                
-            image_data = await response.read()
-            return base64.b64encode(image_data).decode('utf-8')
-
+        try:
+            async with session.get(safe_target_url, headers=headers, timeout=20) as response:
+                if response.status != 200:
+                    raise ValueError(f"无法下载图片: HTTP {response.status}")
+                    
+                image_data = await response.read()
+                return base64.b64encode(image_data).decode('utf-8')
+        except Exception as e:
+            raise RuntimeError(f"图像获取失败: {str(e)}")
 
 async def get_llm_tool(settings):
     llm_list = []
