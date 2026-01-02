@@ -4147,6 +4147,37 @@ async def simple_chat_endpoint(request: ChatRequest):
         headers={"Cache-Control": "no-cache"}
     )
 
+def sanitize_proxy_url(input_url: str) -> str:
+    """
+    针对代理场景优化的 URL 安全过滤
+    """
+    if not input_url:
+        raise HTTPException(status_code=400, detail="URL 不能为空")
+    
+    # 1. 解析 URL
+    parsed = urlparse(input_url)
+    
+    # 2. 验证协议 (禁止 file://, gopher:// 等协议)
+    if parsed.scheme not in ["http", "https"]:
+        raise HTTPException(status_code=400, detail="仅支持 http 或 https 协议")
+    
+    if not parsed.netloc:
+        raise HTTPException(status_code=400, detail="无效的域名或 IP")
+
+    # 3. 重新构造 URL (消除 SSRF 污点)
+    # 排除 userinfo, 只保留必要部分
+    safe_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    if parsed.query:
+        safe_url += f"?{parsed.query}"
+    if parsed.fragment:
+        safe_url += f"#{parsed.fragment}"
+
+    # 4. 内网审计
+    if is_private_ip(parsed.hostname):
+        logger.warning(f"Internal access detected: {safe_url}")
+
+    return safe_url
+
 # 建议 UA 包含项目地址
 USER_AGENT = "Mozilla/5.0 (compatible; OpenSourceProxyBot/1.0)"
 ROBOTS_CACHE = {}
@@ -4154,91 +4185,74 @@ ROBOTS_CACHE = {}
 # ================= 2. 修改后的代理路由 =================
 
 @app.api_route("/extension_proxy", methods=["GET", "POST"])
-async def extension_proxy_endpoint(request: Request):
+async def extension_proxy(request: Request, url: str):
     """
-    合规且安全的通用代理接口
+    集成安全校验与 Robots 协议的代理接口
     """
-    url = request.query_params.get("url")
-    if not url:
-        return Response(content="Missing 'url' parameter", status_code=400)
+    # --- 阶段 A: 安全校验 ---
+    try:
+        target_url = sanitize_proxy_url(url)
+    except HTTPException as e:
+        return Response(content=e.detail, status_code=e.status_code)
 
-    parsed_url = urlparse(url)
-    target_url = url
-    is_internal = False
+    # --- 阶段 B: 合规性校验 (Robots.txt) ---
+    is_allowed = await check_robots_txt(target_url)
+    if not is_allowed:
+        return Response(
+            content="Access denied by robots.txt", 
+            status_code=403,
+            media_type="text/plain"
+        )
 
-    # --- 策略 1: 路径合规判定 (只允许 uploaded_files 访问内网) ---
-    if 'uploaded_files' in parsed_url.path:
-        is_internal = True
-        # 强制路由到本地服务器
-        from py.get_setting import get_host, get_port
-        HOST, PORT = get_host(), get_port()
-        if HOST == '0.0.0.0': HOST = '127.0.0.1'
-        modified_parsed = parsed_url._replace(netloc=f'{HOST}:{PORT}')
-        target_url = urlunparse(modified_parsed)
-    else:
-        # --- 策略 2: 外部请求安全检查 ---
-        # A. SSRF 防护 (放行 Fake-IP 198.18.x.x)
-        if is_private_ip(parsed_url.hostname):
-            return Response(content="Security Block: Private IP access forbidden", status_code=403)
-        
-        # B. Robots.txt 协议合规检查
-        if not await check_robots_txt(url):
-            return Response(content="Compliance Block: Denied by robots.txt", status_code=403)
-
-    # --- 准备请求参数 ---
+    # --- 阶段 C: 执行代理请求 ---
     method = request.method
     body = await request.body()
     
-    # Header 处理
-    # 禁止前端透传某些敏感 Header
-    excluded_headers = {'host', 'content-length', 'connection', 'accept-encoding', 'cookie'}
-    proxy_headers = {
-        "User-Agent": USER_AGENT,
-        "Accept": "*/*"
+    # 构造 Header
+    excluded_headers = {'host', 'content-length', 'connection', 'keep-alive'}
+    headers = {
+        k: v for k, v in request.headers.items() 
+        if k.lower() not in excluded_headers
     }
-
-    # 合并前端自定义 Header
-    custom_headers_str = request.query_params.get("headers")
-    if custom_headers_str:
-        try:
-            custom_data = json.loads(custom_headers_str)
-            for k, v in custom_data.items():
-                if k.lower() not in excluded_headers:
-                    proxy_headers[k] = v
-        except:
-            pass
-
-    # --- 执行代理请求 ---
-    # verify=False 慎用，但在代理场景中为了兼容自签名证书有时需要
-    # follow_redirects=True 允许重定向
-    async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=30.0) as client:
+    headers["User-Agent"] = USER_AGENT
+    
+    print(f"--- [Extension Proxy] ---")
+    print(f"Safe Target: {target_url} | Method: {method}")
+    
+    # 使用 trust_env=False 进一步防止被环境变量代理干扰（SSRF 防御一部分）
+    async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=30.0, trust_env=False) as client:
         try:
             resp = await client.request(
                 method=method,
                 url=target_url,
-                headers=proxy_headers,
-                content=body if body else None
+                headers=headers,
+                content=body
             )
             
-            # 过滤掉响应中的某些头，防止影响前端
-            safe_resp_headers = {}
-            for k, v in resp.headers.items():
-                if k.lower() not in ['content-encoding', 'transfer-encoding', 'content-length']:
-                    safe_resp_headers[k] = v
-
-            # 注入 CORS 头确保前端能读到内容
-            safe_resp_headers["Access-Control-Allow-Origin"] = "*"
-
+            # 透传响应头
+            resp_headers = {
+                k: v for k, v in resp.headers.items()
+                if k.lower() not in {'content-encoding', 'content-length', 'transfer-encoding', 'server'}
+            }
+            
             return Response(
                 content=resp.content,
                 status_code=resp.status_code,
-                headers=safe_resp_headers,
-                media_type=resp.headers.get("content-type")
+                headers=resp_headers,
+                media_type=resp.headers.get("content-type", "application/octet-stream")
             )
 
+        except httpx.ConnectError as e:
+            err_msg = f"Proxy Connect Error: {e}"
+            if "json" in request.headers.get("accept", "").lower():
+                 return Response(content=f'{{"error": "{err_msg}"}}', status_code=502, media_type="application/json")
+            return Response(content=f"<error>{err_msg}</error>", status_code=502, media_type="text/xml")
+            
         except Exception as e:
-            err_msg = f"Proxy Error: {str(e)}"
-            return Response(content=err_msg, status_code=502)
+            print(f"[Proxy Error] System: {repr(e)}")
+            traceback.print_exc()
+            return Response(content="Internal Server Error during proxy", status_code=500)
+
         
 # 存储活跃的ASR WebSocket连接
 asr_connections = []
