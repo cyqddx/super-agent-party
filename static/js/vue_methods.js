@@ -1290,11 +1290,15 @@ let vue_methods = {
         // 新增：处理TTS输入
         else if (data.type === 'start_tts') {
           this.readConfig.longText = data.data.text;
-          this.startRead();
+          // 等待0.5s
+          setTimeout(() => {
+            this.startRead();
+          }, 500);
         }
         // 新增：停止TTS
         else if (data.type === 'stop_tts') {
-          this.stopRead();
+          this.stopTTSActivities();
+          this.readConfig.longText = '';
         }
         // 新增：处理关闭扩展侧边栏
         else if (data.type === 'trigger_close_extension') {
