@@ -2440,12 +2440,23 @@ if ('serviceWorker' in navigator) {
 
                     <!-- 引擎选择 -->
                     <el-form-item :label="t('ttsEngine')" class="form-item-align">
-                      <el-select v-model="newTTSConfig.engine" class="full-width-input">
+                      <el-select 
+                        v-model="newTTSConfig.engine" 
+                        class="full-width-input"
+                        @change="fetchTetosNewVoices(newTTSConfig.engine)"
+                      >
                         <el-option :label="t('edgetts')" value="edgetts"></el-option>
                         <el-option :label="t('systemtts')" value="systemtts" ></el-option>
                         <el-option label="GPT Sovits" value="GSV"></el-option>
                         <el-option :label="t('openaiLike')" value="openai"></el-option>
                         <el-option :label="t('customTTS')" value="customTTS"></el-option>
+                        <el-option label="Azure TTS" value="azure"></el-option>
+                        <el-option label="Volcengine (火山)" value="volcengine"></el-option>
+                        <el-option label="Google TTS" value="google"></el-option>
+                        <el-option label="Baidu TTS (百度)" value="baidu"></el-option>
+                        <el-option label="Minimax" value="minimax"></el-option>
+                        <el-option label="Xunfei (讯飞)" value="xunfei"></el-option>
+                        <el-option label="Fish Audio" value="fish"></el-option>
                       </el-select>
                     </el-form-item>
 
@@ -2469,68 +2480,372 @@ if ('serviceWorker' in navigator) {
                       </el-tooltip>
                     </el-form-item>
 
-                  <div class="tool-item" v-show="newTTSConfig.engine === 'systemtts'">
-                    <div class="tool-header">
-                      <div class="header-left">
-                        <span>
-                          <el-icon>
-                            <i class="fa-solid fa-laptop-code"></i>
-                          </el-icon>
-                          {{t('sysTTS')}}
-                        </span>
-                      </div>
-                      <div class="header-right">
-                         <el-button circle type="primary" @click="fetchSystemVoices" :loading="isLoadingSystemVoices">
-                            <i class="fa-solid fa-rotate-right"></i>
-                         </el-button>
-                      </div>
-                    </div>
-                    
-                    <div class="tool-content">
-                      <el-form-item :label="t('TTSRate')" class="form-item-align">
-                        <el-slider
-                          v-model="newTTSConfig.systemRate"
-                          :min="50"
-                          :max="400"
-                          :step="10"
-                          show-input
-                          @change="autoSaveSettings">
-                        </el-slider>
-                      </el-form-item>
-
-                      <el-form-item :label="t('Timbre')" class="form-item-align">
-                        <el-select
-                          v-model="newTTSConfig.systemVoiceName"
-                          class="full-width-input"
-                          filterable
-                          :loading="isLoadingSystemVoices"
-                          @change="autoSaveSettings"
-                        >
-                          <el-option
-                            v-for="voice in systemVoices"
-                            :key="voice.id"
-                            :label="voice.name"
-                            :value="voice.id"
-                          >
-                            <span style="float: left">{{ voice.name }}</span>
-                            <span
-                              style="
-                                float: right;
-                                color: var(--el-text-color-secondary);
-                                font-size: 13px;
-                              "
+                    <!-- ================= Azure TTS ================= -->
+                    <div class="tool-item" v-show="newTTSConfig.engine === 'azure'">
+                      <div class="tool-header">
+                        <div class="header-left">
+                          <span><i class="fa-brands fa-microsoft"></i> 
+                            Azure TTS
+                            <el-link
+                              type="primary"
+                              :underline="false"
+                              href="https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices" 
+                              target="_blank"
                             >
-                              {{ voice.lang }}
-                            </span>
-                          </el-option>
-                        </el-select>
-                      </el-form-item>
-                      
-                      <div v-if="systemVoices.length === 0 && !isLoadingSystemVoices" style="color: #e6a23c; font-size: 12px; margin-top: 5px;">
-                        <i class="fa-solid fa-triangle-exclamation"></i> {{t('noSystemVoiceDetected')}}
+                              <el-icon class="mr-1">
+                                <i class="fa-solid fa-key"></i>
+                              </el-icon>{{ t('getAPIkey') }}
+                            </el-link>
+                          </span>
+                        </div>
+                        <div class="header-right">
+                          <el-button circle type="primary" @click="fetchTetosVoices('azure')">
+                            <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': newTTSConfig.isFetchingVoices }"></i>
+                          </el-button>
+                        </div>
+                      </div>
+                      <div class="tool-content">
+                        <el-form-item label="Speech Key" class="form-item-align">
+                          <el-input v-model="newTTSConfig.azureSpeechKey" placeholder="Azure Key" type="password" show-password @change="autoSaveSettings"/>
+                        </el-form-item>
+                        <el-form-item label="Region" class="form-item-align">
+                          <el-input v-model="newTTSConfig.azureRegion" placeholder="e.g. eastus" @change="autoSaveSettings"/>
+                        </el-form-item>
+                        <el-form-item label="Voice" class="form-item-align">
+                          <el-select v-model="newTTSConfig.azureVoice" filterable allow-create placeholder="Select Voice" class="full-width-input" @change="autoSaveSettings">
+                            <el-option 
+                              v-for="(v, index) in newTTSConfig.tetosVoices" 
+                              :key="index" 
+                              :label="getVoiceLabel(v)" 
+                              :value="getVoiceValue(v)"
+                            >
+                              <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                              <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                            </el-option>
+                          </el-select>
+                        </el-form-item>
                       </div>
                     </div>
-                  </div>
+
+                    <!-- ================= Volcengine (火山) ================= -->
+                    <div class="tool-item" v-show="newTTSConfig.engine === 'volcengine'">
+                      <div class="tool-header">
+                        <div class="header-left">
+                          <span><i class="fa-solid fa-fire"></i> 
+                            Volcengine
+                            <el-link
+                              type="primary"
+                              :underline="false"
+                              href="https://console.volcengine.com/speech/service" 
+                              target="_blank"
+                            >
+                              <el-icon class="mr-1">
+                                <i class="fa-solid fa-key"></i>
+                              </el-icon>{{ t('getAPIkey') }}
+                            </el-link>
+                          </span>
+                        </div>
+                        <div class="header-right">
+                          <el-button circle type="primary" @click="fetchTetosVoices('volcengine')">
+                            <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': newTTSConfig.isFetchingVoices }"></i>
+                          </el-button>
+                        </div>
+                      </div>
+                      <div class="tool-content">
+                        <el-form-item label="App Key" class="form-item-align"><el-input v-model="newTTSConfig.volcAppKey" @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Access Key" class="form-item-align"><el-input v-model="newTTSConfig.volcAccessKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Secret Key" class="form-item-align"><el-input v-model="newTTSConfig.volcSecretKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Voice" class="form-item-align">
+                          <el-select v-model="newTTSConfig.volcVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                            <el-option 
+                              v-for="(v, index) in newTTSConfig.tetosVoices" 
+                              :key="index" 
+                              :label="getVoiceLabel(v)" 
+                              :value="getVoiceValue(v)"
+                            >
+                              <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                              <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                            </el-option>
+                          </el-select>
+                        </el-form-item>
+                      </div>
+                    </div>
+
+                    <!-- ================= Google TTS ================= -->
+                    <div class="tool-item" v-show="newTTSConfig.engine === 'google'">
+                      <div class="tool-header">
+                        <div class="header-left">
+                          <span><i class="fa-brands fa-google"></i> 
+                            Google TTS
+                            <el-link
+                              type="primary"
+                              :underline="false"
+                              href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com" 
+                              target="_blank"
+                            >
+                              <el-icon class="mr-1">
+                                <i class="fa-solid fa-key"></i>
+                              </el-icon>{{ t('getAPIkey') }}
+                            </el-link>
+                          </span>
+                        </div>
+                        <div class="header-right">
+                          <el-button circle type="primary" @click="fetchTetosVoices('google')">
+                            <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': newTTSConfig.isFetchingVoices }"></i>
+                          </el-button>
+                        </div>
+                      </div>
+                      <div class="tool-content">
+                        <el-form-item label="Service Account JSON" class="form-item-align">
+                          <el-input v-model="newTTSConfig.googleServiceAccount" type="textarea" :rows="3" placeholder='Paste JSON content here: {"type": "service_account", ...}' @change="autoSaveSettings"/>
+                        </el-form-item>
+                        <el-form-item label="Voice" class="form-item-align">
+                          <el-select v-model="newTTSConfig.googleVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                            <el-option 
+                              v-for="(v, index) in newTTSConfig.tetosVoices" 
+                              :key="index" 
+                              :label="getVoiceLabel(v)" 
+                              :value="getVoiceValue(v)"
+                            >
+                              <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                              <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                            </el-option>
+                          </el-select>
+                        </el-form-item>
+                      </div>
+                    </div>
+
+                    <!-- ================= Baidu TTS ================= -->
+                    <div class="tool-item" v-show="newTTSConfig.engine === 'baidu'">
+                      <div class="tool-header">
+                        <div class="header-left">
+                          <span><i class="fa-solid fa-paw"></i> 
+                            Baidu TTS
+                            <el-link
+                              type="primary"
+                              :underline="false"
+                              href="https://console.bce.baidu.com/ai/#/ai/speech/app/list" 
+                              target="_blank"
+                            >
+                              <el-icon class="mr-1">
+                                <i class="fa-solid fa-key"></i>
+                              </el-icon>{{ t('getAPIkey') }}
+                            </el-link>
+                          </span>
+                        </div>
+                        <div class="header-right">
+                          <el-button circle type="primary" @click="fetchTetosVoices('baidu')">
+                            <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': newTTSConfig.isFetchingVoices }"></i>
+                          </el-button>
+                        </div>
+                      </div>
+                      <div class="tool-content">
+                        <el-form-item label="API Key" class="form-item-align"><el-input v-model="newTTSConfig.baiduApiKey" @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Secret Key" class="form-item-align"><el-input v-model="newTTSConfig.baiduSecretKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Voice" class="form-item-align">
+                          <el-select v-model="newTTSConfig.baiduVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                            <el-option 
+                              v-for="(v, index) in newTTSConfig.tetosVoices" 
+                              :key="index" 
+                              :label="getVoiceLabel(v)" 
+                              :value="getVoiceValue(v)"
+                            >
+                              <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                              <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                            </el-option>
+                          </el-select>
+                        </el-form-item>
+                      </div>
+                    </div>
+
+                    <!-- ================= Minimax ================= -->
+                    <div class="tool-item" v-show="newTTSConfig.engine === 'minimax'">
+                      <div class="tool-header">
+                        <div class="header-left">
+                          <span>Minimax
+                            <el-link
+                              type="primary"
+                              :underline="false"
+                              href="https://platform.minimaxi.com/user-center/basic-information" 
+                              target="_blank"
+                            >
+                              <el-icon class="mr-1">
+                                <i class="fa-solid fa-key"></i>
+                              </el-icon>{{ t('getAPIkey') }}
+                            </el-link>
+                          </span>
+                        </div>
+                        <div class="header-right">
+                          <el-button circle type="primary" @click="fetchTetosVoices('minimax')">
+                            <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': newTTSConfig.isFetchingVoices }"></i>
+                          </el-button>
+                        </div>
+                      </div>
+                      <div class="tool-content">
+                        <el-form-item label="API Key" class="form-item-align"><el-input v-model="newTTSConfig.minimaxApiKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Group ID" class="form-item-align"><el-input v-model="newTTSConfig.minimaxGroupId" @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Voice" class="form-item-align">
+                          <el-select v-model="newTTSConfig.minimaxVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                            <el-option 
+                              v-for="(v, index) in newTTSConfig.tetosVoices" 
+                              :key="index" 
+                              :label="getVoiceLabel(v)" 
+                              :value="getVoiceValue(v)"
+                            >
+                              <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                              <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                            </el-option>
+                          </el-select>
+                        </el-form-item>
+                      </div>
+                    </div>
+
+                    <!-- ================= Xunfei (讯飞) ================= -->
+                    <div class="tool-item" v-show="newTTSConfig.engine === 'xunfei'">
+                      <div class="tool-header">
+                        <div class="header-left">
+                          <span>Xunfei
+                            <el-link
+                              type="primary"
+                              :underline="false"
+                              href="https://console.xfyun.cn/services/tts" 
+                              target="_blank"
+                            >
+                              <el-icon class="mr-1">
+                                <i class="fa-solid fa-key"></i>
+                              </el-icon>{{ t('getAPIkey') }}
+                            </el-link>
+                          </span>
+                        </div>
+                        <div class="header-right">
+                          <el-button circle type="primary" @click="fetchTetosVoices('xunfei')">
+                            <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': newTTSConfig.isFetchingVoices }"></i>
+                          </el-button>
+                        </div>
+                      </div>
+                      <div class="tool-content">
+                        <el-form-item label="App ID" class="form-item-align"><el-input v-model="newTTSConfig.xunfeiAppId" @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="API Key" class="form-item-align"><el-input v-model="newTTSConfig.xunfeiApiKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="API Secret" class="form-item-align"><el-input v-model="newTTSConfig.xunfeiApiSecret" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Voice" class="form-item-align">
+                          <el-select v-model="newTTSConfig.xunfeiVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                            <el-option 
+                              v-for="(v, index) in newTTSConfig.tetosVoices" 
+                              :key="index" 
+                              :label="getVoiceLabel(v)" 
+                              :value="getVoiceValue(v)"
+                            >
+                              <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                              <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                            </el-option>
+                          </el-select>
+                        </el-form-item>
+                      </div>
+                    </div>
+
+                    <!-- ================= Fish Audio ================= -->
+                    <div class="tool-item" v-show="newTTSConfig.engine === 'fish'">
+                      <div class="tool-header">
+                        <div class="header-left">
+                          <span><i class="fa-solid fa-fish"></i> 
+                            Fish Audio
+                            <el-link
+                              type="primary"
+                              :underline="false"
+                              href="https://fish.audio/go-api" 
+                              target="_blank"
+                            >
+                              <el-icon class="mr-1">
+                                <i class="fa-solid fa-key"></i>
+                              </el-icon>{{ t('getAPIkey') }}
+                            </el-link>
+                          </span>
+                        </div>
+                        <div class="header-right">
+                          <el-button circle type="primary" @click="fetchTetosVoices('fish')">
+                            <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': newTTSConfig.isFetchingVoices }"></i>
+                          </el-button>
+                        </div>
+                      </div>
+                      <div class="tool-content">
+                        <el-form-item label="API Key" class="form-item-align"><el-input v-model="newTTSConfig.fishApiKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                        <el-form-item label="Voice" class="form-item-align">
+                          <el-select v-model="newTTSConfig.fishVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                            <el-option 
+                              v-for="(v, index) in newTTSConfig.tetosVoices" 
+                              :key="index" 
+                              :label="getVoiceLabel(v)" 
+                              :value="getVoiceValue(v)"
+                            >
+                              <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                              <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                            </el-option>
+                          </el-select>
+                        </el-form-item>
+                      </div>
+                    </div>
+
+                    <!-- ================= System TTS ================= -->
+                    <div class="tool-item" v-show="newTTSConfig.engine === 'systemtts'">
+                      <div class="tool-header">
+                        <div class="header-left">
+                          <span>
+                            <el-icon><i class="fa-solid fa-laptop-code"></i></el-icon>
+                            {{ t('sysTTS') }}
+                          </span>
+                        </div>
+                        <div class="header-right">
+                          <el-button circle type="primary" @click="fetchSystemVoices">
+                            <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': isLoadingSystemVoices }"></i>
+                          </el-button>
+                        </div>
+                      </div>
+
+                      <div class="tool-content">
+                        <el-form-item :label="t('TTSRate')" class="form-item-align">
+                          <el-slider
+                            v-model="newTTSConfig.systemRate"
+                            :min="50"
+                            :max="400"
+                            :step="10"
+                            show-input
+                            @change="autoSaveSettings">
+                          </el-slider>
+                        </el-form-item>
+
+                        <el-form-item :label="t('Timbre')" class="form-item-align">
+                          <el-select
+                            v-model="newTTSConfig.systemVoiceName"
+                            class="full-width-input"
+                            filterable
+                            :loading="isLoadingSystemVoices"
+                            @change="autoSaveSettings"
+                          >
+                            <el-option
+                              v-for="voice in systemVoices"
+                              :key="voice.id"
+                              :label="voice.name"
+                              :value="voice.id"
+                            >
+                              <span style="float: left">{{ voice.name }}</span>
+                              <span
+                                style="
+                                  float: right;
+                                  color: var(--el-text-color-secondary);
+                                  font-size: 13px;
+                                "
+                              >
+                                {{ voice.lang }}
+                              </span>
+                            </el-option>
+                          </el-select>
+                        </el-form-item>
+
+                        <div v-if="systemVoices.length === 0 && !isLoadingSystemVoices" style="color: #e6a23c; font-size: 12px; margin-top: 5px;">
+                          <i class="fa-solid fa-triangle-exclamation"></i> {{ t('noSystemVoiceDetected') }}
+                        </div>
+                      </div>
+                    </div>
 
                     <div class="tool-item" v-show="newTTSConfig.engine === 'openai'">
                       <div class="tool-header">
@@ -4880,7 +5195,7 @@ if ('serviceWorker' in navigator) {
                       <el-form-item :label="t('ttsEngine')" class="form-item-align">
                         <el-select
                           v-model="ttsSettings.engine"
-                          @change="autoSaveSettings"
+                          @change="autoSaveSettings();fetchTetosVoices(ttsSettings.engine)"
                           class="full-width-input"
                         >
                           <el-option :label="t('edgetts')" value="edgetts" ></el-option>
@@ -4888,6 +5203,13 @@ if ('serviceWorker' in navigator) {
                           <el-option label="GPT Sovits" value="GSV" ></el-option>
                           <el-option :label="t('openaiLike')" value="openai" ></el-option>
                           <el-option :label="t('customTTS')" value="customTTS" ></el-option>
+                          <el-option label="Azure TTS" value="azure"></el-option>
+                          <el-option label="Volcengine (火山)" value="volcengine"></el-option>
+                          <el-option label="Google TTS" value="google"></el-option>
+                          <el-option label="Baidu TTS (百度)" value="baidu"></el-option>
+                          <el-option label="Minimax" value="minimax"></el-option>
+                          <el-option label="Xunfei (讯飞)" value="xunfei"></el-option>
+                          <el-option label="Fish Audio" value="fish"></el-option>
                         </el-select>
                       </el-form-item>
                       <el-form-item :label="t('separators')">
@@ -4960,19 +5282,17 @@ if ('serviceWorker' in navigator) {
                     <div class="tool-header">
                       <div class="header-left">
                         <span>
-                          <el-icon>
-                            <i class="fa-solid fa-laptop-code"></i>
-                          </el-icon>
-                          {{t('sysTTS')}}
+                          <el-icon><i class="fa-solid fa-laptop-code"></i></el-icon>
+                          {{ t('sysTTS') }}
                         </span>
                       </div>
                       <div class="header-right">
-                         <el-button circle type="primary" @click="fetchSystemVoices" :loading="isLoadingSystemVoices">
-                            <i class="fa-solid fa-rotate-right"></i>
-                         </el-button>
+                        <el-button circle type="primary" @click="fetchSystemVoices">
+                          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': isLoadingSystemVoices }"></i>
+                        </el-button>
                       </div>
                     </div>
-                    
+
                     <div class="tool-content">
                       <el-form-item :label="t('TTSRate')" class="form-item-align">
                         <el-slider
@@ -5012,9 +5332,9 @@ if ('serviceWorker' in navigator) {
                           </el-option>
                         </el-select>
                       </el-form-item>
-                      
+
                       <div v-if="systemVoices.length === 0 && !isLoadingSystemVoices" style="color: #e6a23c; font-size: 12px; margin-top: 5px;">
-                        <i class="fa-solid fa-triangle-exclamation"></i> {{t('noSystemVoiceDetected')}}
+                        <i class="fa-solid fa-triangle-exclamation"></i> {{ t('noSystemVoiceDetected') }}
                       </div>
                     </div>
                   </div>
@@ -5145,6 +5465,312 @@ if ('serviceWorker' in navigator) {
                         </div>
                       </template>
                     </el-alert>
+                  </div>
+
+
+<!-- ================= Azure TTS ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'azure'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span><i class="fa-brands fa-microsoft"></i> 
+                          Azure TTS
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('getAPIkey') }}
+                          </el-link>
+                        </span>
+                      </div>
+                      <div class="header-right">
+                        <el-button circle type="primary" @click="fetchTetosVoices('azure')">
+                          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': ttsSettings.isFetchingVoices }"></i>
+                        </el-button>
+                      </div>
+                    </div>
+                    <div class="tool-content">
+                      <el-form-item label="Speech Key" class="form-item-align">
+                        <el-input v-model="ttsSettings.azureSpeechKey" placeholder="Azure Key" @change="autoSaveSettings" type="password" show-password/>
+                      </el-form-item>
+                      <el-form-item label="Region" class="form-item-align">
+                        <el-input v-model="ttsSettings.azureRegion" placeholder="e.g. eastus" @change="autoSaveSettings"/>
+                      </el-form-item>
+                      <el-form-item label="Voice" class="form-item-align">
+                        <el-select v-model="ttsSettings.azureVoice" filterable allow-create placeholder="Select Voice" @change="autoSaveSettings" class="full-width-input">
+                          <el-option 
+                            v-for="(v, index) in ttsSettings.tetosVoices" 
+                            :key="index" 
+                            :label="getVoiceLabel(v)" 
+                            :value="getVoiceValue(v)"
+                          >
+                            <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                            <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                          </el-option>
+                        </el-select>
+                      </el-form-item>
+                    </div>
+                  </div>
+
+                  <!-- ================= Volcengine (火山) ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'volcengine'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span><i class="fa-solid fa-fire"></i> 
+                          Volcengine
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://console.volcengine.com/speech/service" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('getAPIkey') }}
+                          </el-link>
+                        </span>
+                      </div>
+                      <div class="header-right">
+                        <el-button circle type="primary" @click="fetchTetosVoices('volcengine')">
+                          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': ttsSettings.isFetchingVoices }"></i>
+                        </el-button>
+                      </div>
+                    </div>
+                    <div class="tool-content">
+                      <el-form-item label="App Key" class="form-item-align"><el-input v-model="ttsSettings.volcAppKey" @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Access Key" class="form-item-align"><el-input v-model="ttsSettings.volcAccessKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Secret Key" class="form-item-align"><el-input v-model="ttsSettings.volcSecretKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Voice" class="form-item-align">
+                        <el-select v-model="ttsSettings.volcVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                          <el-option 
+                            v-for="(v, index) in ttsSettings.tetosVoices" 
+                            :key="index" 
+                            :label="getVoiceLabel(v)" 
+                            :value="getVoiceValue(v)"
+                          >
+                            <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                            <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                          </el-option>
+                        </el-select>
+                      </el-form-item>
+                    </div>
+                  </div>
+
+                  <!-- ================= Google TTS ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'google'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span><i class="fa-brands fa-google"></i> 
+                          Google TTS
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://console.cloud.google.com/apis/library/texttospeech.googleapis.com" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('getAPIkey') }}
+                          </el-link>
+                        </span>
+                      </div>
+                      <div class="header-right">
+                        <el-button circle type="primary" @click="fetchTetosVoices('google')">
+                          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': ttsSettings.isFetchingVoices }"></i>
+                        </el-button>
+                      </div>
+                    </div>
+                    <div class="tool-content">
+                      <el-form-item label="Service Account JSON" class="form-item-align">
+                        <el-input v-model="ttsSettings.googleServiceAccount" type="textarea" :rows="3" placeholder='Paste JSON content here: {"type": "service_account", ...}' @change="autoSaveSettings"/>
+                      </el-form-item>
+                      <el-form-item label="Voice" class="form-item-align">
+                        <el-select v-model="ttsSettings.googleVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                          <el-option 
+                            v-for="(v, index) in ttsSettings.tetosVoices" 
+                            :key="index" 
+                            :label="getVoiceLabel(v)" 
+                            :value="getVoiceValue(v)"
+                          >
+                            <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                            <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                          </el-option>
+                        </el-select>
+                      </el-form-item>
+                    </div>
+                  </div>
+
+                  <!-- ================= Baidu TTS ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'baidu'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span><i class="fa-solid fa-paw"></i> 
+                          Baidu TTS
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://console.bce.baidu.com/ai/#/ai/speech/app/list" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('getAPIkey') }}
+                          </el-link>
+                        </span>
+                      </div>
+                      <div class="header-right">
+                        <el-button circle type="primary" @click="fetchTetosVoices('baidu')">
+                          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': ttsSettings.isFetchingVoices }"></i>
+                        </el-button>
+                      </div>
+                    </div>
+                    <div class="tool-content">
+                      <el-form-item label="API Key" class="form-item-align"><el-input v-model="ttsSettings.baiduApiKey" @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Secret Key" class="form-item-align"><el-input v-model="ttsSettings.baiduSecretKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Voice" class="form-item-align">
+                        <el-select v-model="ttsSettings.baiduVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                          <el-option 
+                            v-for="(v, index) in ttsSettings.tetosVoices" 
+                            :key="index" 
+                            :label="getVoiceLabel(v)" 
+                            :value="getVoiceValue(v)"
+                          >
+                            <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                            <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                          </el-option>
+                        </el-select>
+                      </el-form-item>
+                    </div>
+                  </div>
+
+                  <!-- ================= Minimax ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'minimax'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span>Minimax
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://platform.minimaxi.com/user-center/basic-information" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('getAPIkey') }}
+                          </el-link>
+                        </span>
+                      </div>
+                      <div class="header-right">
+                        <el-button circle type="primary" @click="fetchTetosVoices('minimax')">
+                          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': ttsSettings.isFetchingVoices }"></i>
+                        </el-button>
+                      </div>
+                    </div>
+                    <div class="tool-content">
+                      <el-form-item label="API Key" class="form-item-align"><el-input v-model="ttsSettings.minimaxApiKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Group ID" class="form-item-align"><el-input v-model="ttsSettings.minimaxGroupId" @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Voice" class="form-item-align">
+                        <el-select v-model="ttsSettings.minimaxVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                          <el-option 
+                            v-for="(v, index) in ttsSettings.tetosVoices" 
+                            :key="index" 
+                            :label="getVoiceLabel(v)" 
+                            :value="getVoiceValue(v)"
+                          >
+                            <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                            <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                          </el-option>
+                        </el-select>
+                      </el-form-item>
+                    </div>
+                  </div>
+
+                  <!-- ================= Xunfei (讯飞) ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'xunfei'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span>Xunfei
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://console.xfyun.cn/services/tts" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('getAPIkey') }}
+                          </el-link>
+                        </span>
+                      </div>
+                      <div class="header-right">
+                        <el-button circle type="primary" @click="fetchTetosVoices('xunfei')">
+                          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': ttsSettings.isFetchingVoices }"></i>
+                        </el-button>
+                      </div>
+                    </div>
+                    <div class="tool-content">
+                      <el-form-item label="App ID" class="form-item-align"><el-input v-model="ttsSettings.xunfeiAppId" @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="API Key" class="form-item-align"><el-input v-model="ttsSettings.xunfeiApiKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="API Secret" class="form-item-align"><el-input v-model="ttsSettings.xunfeiApiSecret" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Voice" class="form-item-align">
+                        <el-select v-model="ttsSettings.xunfeiVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                          <el-option 
+                            v-for="(v, index) in ttsSettings.tetosVoices" 
+                            :key="index" 
+                            :label="getVoiceLabel(v)" 
+                            :value="getVoiceValue(v)"
+                          >
+                            <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                            <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                          </el-option>
+                        </el-select>
+                      </el-form-item>
+                    </div>
+                  </div>
+
+                  <!-- ================= Fish Audio ================= -->
+                  <div class="tool-item" v-show="ttsSettings.engine === 'fish'">
+                    <div class="tool-header">
+                      <div class="header-left">
+                        <span><i class="fa-solid fa-fish"></i> 
+                          Fish Audio
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://fish.audio/go-api" 
+                            target="_blank"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('getAPIkey') }}
+                          </el-link>
+                        </span>
+                      </div>
+                      <div class="header-right">
+                        <el-button circle type="primary" @click="fetchTetosVoices('fish')">
+                          <i class="fa-solid fa-rotate-right" :class="{ 'fa-spin': ttsSettings.isFetchingVoices }"></i>
+                        </el-button>
+                      </div>
+                    </div>
+                    <div class="tool-content">
+                      <el-form-item label="API Key" class="form-item-align"><el-input v-model="ttsSettings.fishApiKey" type="password" show-password @change="autoSaveSettings"/></el-form-item>
+                      <el-form-item label="Voice" class="form-item-align">
+                        <el-select v-model="ttsSettings.fishVoice" filterable allow-create class="full-width-input" @change="autoSaveSettings">
+                          <el-option 
+                            v-for="(v, index) in ttsSettings.tetosVoices" 
+                            :key="index" 
+                            :label="getVoiceLabel(v)" 
+                            :value="getVoiceValue(v)"
+                          >
+                            <span style="float: left">{{ getVoiceLabel(v) }}</span>
+                            <span style="float: right; color: #8492a6; font-size: 13px">{{ getVoiceDesc(v) }}</span>
+                          </el-option>
+                        </el-select>
+                      </el-form-item>
+                    </div>
                   </div>
 
                   <div class="tool-item" v-show="ttsSettings.engine === 'customTTS'">
