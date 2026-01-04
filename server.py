@@ -1,6 +1,8 @@
 # -- coding: utf-8 --
 import sys
 import traceback
+
+import requests
 sys.stdout.reconfigure(encoding='utf-8')
 import base64
 from datetime import datetime
@@ -5819,15 +5821,38 @@ async def list_tetos_voices(request: Request):
                 )
                 voices = speaker.list_voices()
 
-            # ---------------------------
-            # Fish Audio
-            # ---------------------------
             elif provider == 'fish':
-                from tetos.fish import FishSpeaker
-                speaker = FishSpeaker(
-                    api_key=config.get('api_key')
-                )
-                voices = speaker.list_voices()
+                api_key = config.get('api_key')
+                if not api_key:
+                    raise ValueError("Fish Audio 需要配置 API Key")
+
+                # 请求 Fish Audio 官方 API
+                # page_size 设置为 30 以获取更多热门音色
+                url = "https://api.fish.audio/model?page_size=30&page_number=1&sort_by=score"
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "User-Agent": "Mozilla/5.0" 
+                }
+                
+                response = requests.get(url, headers=headers, timeout=60)
+                response.raise_for_status() # 检查 HTTP 错误
+                res_json = response.json()
+                
+                # 解析返回的数据结构
+                items = res_json.get("items", [])
+                
+                for item in items:
+                    # 将 Fish Audio 的数据结构转换为前端通用的结构
+                    # 前端 getVoiceValue 优先找 id
+                    # 前端 getVoiceLabel 优先找 DisplayName 或 name
+                    # 前端 getVoiceDesc 优先找 Locale
+                    voices.append({
+                        "id": item.get("_id"),            # 关键：这是实际的 voice ID
+                        "name": item.get("title"),        # 显示名称
+                        "DisplayName": item.get("title"), # 兼容字段
+                        "Locale": item.get("languages", ["Unknown"])[0] if item.get("languages") else "" # 语言标签
+                    })
+
 
             # ---------------------------
             # Google TTS
@@ -5881,6 +5906,7 @@ async def list_tetos_voices(request: Request):
         })
 
     except Exception as e:
+        print(f"获取 {provider} 音色列表失败: {e}")
         # 捕获鉴权失败、网络错误等
         return JSONResponse(status_code=500, content={
             "status": "error", 
