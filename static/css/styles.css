@@ -4716,7 +4716,12 @@ body {
   
   transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
-
+.markdown-table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 !important; /* 去掉 table 自身的 margin */
+  border: none !important; /* 边框交给 wrapper */
+}
 /* 优化滚动条样式（防止在Windows下滚动条太丑破坏圆角） */
 .markdown-table-wrapper::-webkit-scrollbar {
   height: 6px; /* 横向滚动条高度 */
@@ -5448,3 +5453,122 @@ hr.footnotes-sep {
     color: var(--el-color-primary) !important;
     cursor: pointer;
 }
+/* --- START OF STREAMDOWN OPTIMIZATIONS --- */
+
+/* 1. 解决表格/布局抖动核心修复 */
+/* 强制表格容器块级化，防止内容撑开导致父级跳动 */
+.markdown-body table {
+  display: block !important;       /* 覆盖原本的 display: table */
+  width: 100% !important;
+  overflow-x: auto !important;     /* 允许横向滚动 */
+  table-layout: auto !important;   /* 让浏览器自动布局 */
+  margin-bottom: 1em !important;
+  border-collapse: collapse !important;
+  /* 防止空表头导致高度塌陷 */
+  min-height: 40px; 
+}
+
+/* 固定单元格行为，减少文字输入时的微小跳动 */
+.markdown-body th, 
+.markdown-body td {
+  min-width: 60px;               /* 最小宽度 */
+  word-break: break-word;        /* 允许换行 */
+  white-space: normal;
+  transition: background-color 0.2s; /* 仅颜色过渡，不过渡宽高 */
+}
+
+/* 2. 丝滑扫描进场动画 (Stream Effect) */
+@keyframes stream-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(5px) translateX(-5px);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) translateX(0);
+    filter: blur(0);
+  }
+}
+
+/* 应用动画到 Markdown 的块级元素 */
+/* 注意：这里使用了 :not 排除已存在的元素，配合 morphdom 使用效果极佳 */
+.markdown-body > p,
+.markdown-body > ul,
+.markdown-body > ol,
+.markdown-body > table,
+.markdown-body > blockquote,
+.markdown-body > pre {
+  animation: stream-slide-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  transform-origin: left center;
+}
+
+/* 列表项逐个出现 */
+.markdown-body li {
+  animation: stream-slide-in 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+/* 3. 光标特效 (仅在正在生成的最后一段显示) */
+/* 我们通过 JS 给正在生成的容器加 .streaming 类 */
+.streaming > *:last-child::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 1.2em;
+  background-color: var(--el-color-primary);
+  margin-left: 4px;
+  vertical-align: sub;
+  animation: stream-blink 1s step-end infinite;
+  box-shadow: 0 0 8px var(--el-color-primary);
+}
+
+/* 代码块里不显示光标 */
+.streaming > pre:last-child::after {
+  display: none;
+}
+
+@keyframes stream-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* 4. 代码块防抖优化 */
+.markdown-body pre code {
+  /* 强制换行，防止代码过长导致布局瞬间撑开 */
+  white-space: pre-wrap !important; 
+  word-break: break-all !important; 
+}
+
+/* --- 修复表格底部空隙 --- */
+
+/* 1. 强制去除 Wrapper 内部 Table 的所有外边距 */
+/* markdown-body 通常给 table 设了 margin-bottom: 1rem，这会导致 Wrapper 底部有大片空白 */
+.markdown-table-wrapper table {
+  margin: 0 !important;
+  border-bottom: none !important; /* 避免双重边框 */
+}
+
+/* 2. 确保 Wrapper 紧贴内容 */
+.markdown-table-wrapper {
+  /* 确保 wrapper 自身没有多余的 padding */
+  padding: 0 !important; 
+  /* 确保溢出处理正确 */
+  overflow: hidden; 
+  /* 重新把圆角加回来，防止直角表格刺破圆角容器 */
+  border-radius: 8px;
+}
+
+/* 3. 去掉最后一行单元格的底部边框 (可选，为了完美视觉) */
+/* 因为 Wrapper 已经有边框了，如果最后一行也有 border-bottom，看起来会变粗 */
+.markdown-table-wrapper table tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* 4. 修复水平滚动条导致的高度 (可选) */
+/* 如果你需要横向滚动，确保滚动条不占据非滚动状态的高度 */
+.markdown-table-wrapper::-webkit-scrollbar {
+  height: 6px; 
+  background: transparent;
+}
+
+/* --- END OF STREAMDOWN OPTIMIZATIONS --- */

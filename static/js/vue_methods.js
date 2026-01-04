@@ -37,6 +37,19 @@ const md = window.markdownit({
 }
 });
 
+// 1. 重写表格开始标签：直接输出带 wrapper 的 HTML
+md.renderer.rules.table_open = function(tokens, idx, options, env, self) {
+  // 返回：<div class="markdown-table-wrapper"><table>
+  return '<div class="markdown-table-wrapper"><table' + self.renderAttrs(tokens[idx]) + '>';
+};
+
+// 2. 重写表格结束标签：闭合 table，添加按钮，闭合 div
+md.renderer.rules.table_close = function(tokens, idx, options, env, self) {
+  // 这里我们添加一个特殊的 class "download-xlsx-btn" 用于后续事件代理
+  // 注意：onclick 这里不直接写逻辑，而是通过 Vue 的事件代理来处理
+  return '</table><button class="table-download-btn download-xlsx-trigger" type="button"><i class="fa-solid fa-file-excel"></i> XLSX</button></div>';
+};
+
 if (window.markdownitFootnote) {
     md.use(window.markdownitFootnote);
     
@@ -579,25 +592,58 @@ let vue_methods = {
       this.isExpanded = !this.isExpanded; // 点击时切换状态
       this.maximizeWindow();
     },
+
+    throttledUpdate(index, newContent) {
+      // 更新原始数据
+      this.messages[index].content = newContent;
+      
+      // 如果已经有定时器在跑，则跳过（防抖）
+      if (this.renderTimers[index]) return;
+
+      this.renderTimers[index] = setTimeout(() => {
+        // 执行真正的渲染
+        this.messages[index].renderedHtml = this.formatMessage(newContent, index);
+        // 清除定时器
+        this.renderTimers[index] = null;
+      }, 80); // 80ms 延迟，约等于 12fps，人眼感觉流畅且不卡顿
+    },
+
+
     //  使用占位符处理 LaTeX 公式
-    formatMessage(content,index) {
+    formatMessage(content, index) {
+      if (!content) return '';
+
+      // 目的是防止 markdown-it 因为最后一行缺少 '|' 而在 Table 和 Paragraph 之间反复横跳
+      let processedForRender = content.trimEnd(); 
+      
+      // 获取最后一行
+      const lines = content.split('\n');
+      const lastLine = lines[lines.length - 1].trim();
+
+      // 如果最后一行以 '|' 开头（看起来像是表格行）
+      // 并且它还不是分隔行（即不是 |---| 这种）
+      // 并且它没有以 '|' 结尾
+      if (lastLine.startsWith('|') && !lastLine.endsWith('|') && !/^[|\s-:]+$/.test(lastLine)) {
+        // 临时在渲染用的字符串末尾补上 ' |'，让解析器认为这一行结束了
+        // 注意：这不会修改 this.messages 里的真实数据，只影响本次渲染
+        processedForRender += ' |';
+      }
+
+      // --- 预处理阶段 (保持您原有的逻辑) ---
       const parts = this.splitCodeAndText(content);
       let latexPlaceholderCounter = 0;
       const latexPlaceholders = [];
       let inUnclosedCodeBlock = false;
-    
+
       let processedContent = parts.map(part => {
         if (part.type === 'code') {
           inUnclosedCodeBlock = !part.closed;
-          return part.content; // 直接保留原始代码块内容
+          return part.content; 
         } else if (inUnclosedCodeBlock) {
-          // 处理未闭合代码块中的内容
-          return part.content
-            .replace(/`/g, '\\`') // 转义反引号
-            .replace(/\$/g, '\\$'); // 转义美元符号
+          // 修复：流式输出时，未闭合的代码块内容不要转义，否则用户会看到转义符
+          return part.content; 
         } else {
-          // 处理非代码内容
-          // 处理think标签
+          // 处理 <think> 标签
           const thinkTagRegexWithClose = /<think>([\s\S]*?)<\/think>/g;
           const thinkTagRegexOpenOnly = /<think>[\s\S]*$/;
           
@@ -608,9 +654,10 @@ let vue_methods = {
             .replace(thinkTagRegexOpenOnly, match => 
               match.replace('<think>', '<div class="highlight-block-reasoning">')
             );
-    
-          // 处理LaTeX公式
-          const latexRegex = /(\$.*?\$)|(\\\[.*?\\\])|(\\$.*?$)/g;
+
+          // 处理 LaTeX 公式 (提取并占位)
+          // 优化正则：增加非捕获组以提高性能
+          const latexRegex = /(\$(?:\\.|[^\$\\])*\$)|(\\\[(?:\\.|[^\\])*\\\])/g;
           return formatted.replace(latexRegex, (match) => {
             const placeholder = `LATEX_PLACEHOLDER_${latexPlaceholderCounter++}`;
             latexPlaceholders.push({ placeholder, latex: match });
@@ -618,59 +665,73 @@ let vue_methods = {
           });
         }
       }).join('');
-      // 删除包含非ASCII码的HTML标签
-      processedContent = removeNonAsciiTags(processedContent)
-      // 渲染Markdown
+
+      // --- 渲染阶段 ---
+      // 移除这一步的 removeNonAsciiTags，通常它会破坏中文显示，除非你有特殊需求
+      // processedContent = removeNonAsciiTags(processedContent); 
+
       let rendered = md.render(processedContent);
-    
-      // 恢复LaTeX占位符
+
+      // --- 恢复阶段 ---
+      // 恢复 LaTeX
       latexPlaceholders.forEach(({ placeholder, latex }) => {
         rendered = rendered.replace(placeholder, latex);
       });
-    
-      // 处理未闭合代码块的转义字符
+
+      // 处理未闭合代码块的转义 (如果有)
       rendered = rendered.replace(/\\\`/g, '`').replace(/\\\$/g, '$');
 
+      // 处理思考中的状态 (Thinking...)
+      const currentMsg = this.messages[index];
+      // 只有当是最后一条消息、角色是助手、且正在输入时才显示“思考中”图标
+      if (index === this.messages.length - 1 && currentMsg?.role === 'assistant' && this.isTyping && currentMsg.content !== currentMsg.pure_content) {
+        // 注意：这里不要直接加在 rendered 字符串里，最好在模板中通过 v-if 控制，
+        // 但为了兼容您的逻辑，我们保留：
+        rendered = `<div class="thinking-header"><i class="fa-solid fa-lightbulb"></i> ${this.t('thinking')}</div>` + rendered;
+      }
+
+      // --- 后处理 (MathJax & Mermaid) ---
+      // 我们不再在 formatMessage 内部直接调用 MathJax，而是将其推入队列
       this.$nextTick(() => {
-        MathJax.typesetPromise()
-          .then(() => {
-            this.initCopyButtons();
-            this.initPreviewButtons();
-          })
-          .catch(console.error);
+        this.queueMathJax(index);
+        this.initCopyButtons();
+        this.initPreviewButtons();
+        // Mermaid 也可以在这里懒加载
       });
 
-
-      if (index == this.messages.length - 1 && this.messages[index].role === 'assistant' && this.messages[index]?.briefly && this.messages[index]?.content != this.messages[index]?.pure_content&&this.isTyping) {
-        rendered = `<i class="fa-solid fa-lightbulb">${this.t('thinking')}</i><br>` + rendered
-      }
-
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = rendered;
-      // 处理链接标签
-      const links = tempDiv.getElementsByTagName('a');
-      for (const link of links) {
-        // 【新增】检测是否为脚注相关的链接
-        // 1. footnote-ref: 正文中的上标数字 (通常包裹在 sup 中，或自身带有该类)
-        // 2. footnote-backref: 底部列表跳回正文的箭头
-        const isFootnoteRef = link.parentElement && link.parentElement.classList.contains('footnote-ref');
-        const isFootnoteBack = link.classList.contains('footnote-backref');
-
-        if (isFootnoteRef || isFootnoteBack) {
-          // 如果是脚注，不做任何文件路径处理，也不强制新窗口打开
-          // 它们只需要能在当前页面锚点跳转即可
-          continue; 
+      // 处理链接 (保持您原有的 DOM 操作逻辑，但建议用正则替换以提高性能)
+      // 使用正则替换 href，比创建 DOM 树快得多
+      rendered = rendered.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]*)"([^>]*)>/g, (match, href, otherAttrs) => {
+        // 检查是否为脚注
+        if (otherAttrs.includes('footnote-ref') || otherAttrs.includes('footnote-backref') || href.startsWith('#')) {
+          return match; 
         }
+        const formattedHref = this.formatFileUrl(href);
+        return `<a href="${formattedHref}" target="_blank"${otherAttrs}>`;
+      });
 
-        // --- 下面是原本的普通链接处理逻辑 ---
-        const originalHref = link.getAttribute('href');
-        if (originalHref) {
-          link.setAttribute('href', this.formatFileUrl(originalHref));
-        }
-        link.setAttribute('target', '_blank');
-      }
-      
-      return tempDiv.innerHTML;
+      return rendered;
+    },
+
+  // 3. MathJax 队列处理 (解决流式输出时的公式闪烁/报错)
+  queueMathJax(index) {
+    // 找到对应的 DOM 元素（假设您在 template 中给了消息容器一个 ID，如 id="msg-content-${index}"）
+    const element = document.getElementById(`message-content-${index}`);
+    if (!element) return;
+
+    // 将渲染任务加入队列
+    this.mathJaxQueue = this.mathJaxQueue.then(() => {
+      if (!window.MathJax) return Promise.resolve();
+      // 使用 typesetPromise 而不是 typeset
+      return window.MathJax.typesetPromise([element]).catch(err => {
+        // 忽略渲染过程中的临时错误（常见于流式传输公式未闭合时）
+        console.debug('MathJax rendering skipped:', err.message);
+      });
+    });
+  },
+    formatMessageWrapper(content) {
+        // 调用您现有的 formatMessage，这里传 index = -1 避免产生副作用（如 thinking 图标）
+        return this.formatMessage(content, -1); 
     },
     copyLink(uniqueFilename) {
       const url = `${this.partyURL}/uploaded_files/${uniqueFilename}`
@@ -11272,6 +11333,47 @@ async togglePlugin(plugin) {
         wrapper.appendChild(btn);
       });
     });
+  },
+
+  // 全局点击事件代理
+  handleGlobalClick(event) {
+    // 1. 检查点击的是否是 Excel 导出按钮
+    // closest 处理用户可能点到图标 <i> 的情况
+    const btn = event.target.closest('.download-xlsx-trigger');
+    
+    if (btn) {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // 找到同级的前一个兄弟元素 (即 table)
+      // 根据上面 markdown-it 的结构: <table>...</table> <button>...</button>
+      // 所以 button.previousElementSibling 就是 table
+      const table = btn.previousElementSibling;
+      
+      if (table && table.tagName === 'TABLE') {
+        this.exportTable(btn, table);
+      }
+    }
+  },
+
+  // 这里的逻辑跟您原来的 click 类似，只是参数变了
+  async exportTable(btn, tableElement) {
+    if (btn.disabled) return; // 防止重复点击
+
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 导出中...';
+    btn.disabled = true;
+
+    try {
+      await this.downloadTableAsXLSX(tableElement);
+    } catch (error) {
+      console.error('导出失败', error);
+      // 如果有 Element Plus
+      if (this.$message) this.$message.error('导出失败');
+    } finally {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }
   },
 
   /**

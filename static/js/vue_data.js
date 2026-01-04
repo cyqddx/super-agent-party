@@ -1816,4 +1816,7 @@ main();`,
     logContent: '', // 日志内容
     systemVoices: [],        // 存储从后端获取的音色列表
     isLoadingSystemVoices: false, // 加载状态
+    renderTimers: {}, // 用于存储每个消息的防抖定时器
+    mathJaxQueue: Promise.resolve(), // MathJax 串行队列，防止冲突
+    isMathJaxRunning: false,
 };

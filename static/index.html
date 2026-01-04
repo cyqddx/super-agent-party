@@ -51,12 +51,90 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
+// 2. 注册 Vue 自定义指令 (在您的 app.mount 之前或者组件 mixin 中)
+// 如果您用的是 Options API，可以直接放在 directives: { ... } 里，或者全局注册
+const StreamDirective = {
+  mounted(el, binding) {
+    el._markdownContent = '';
+    updateElement(el, binding.value, binding.arg); // binding.arg 可以传 formatMessage 函数
+  },
+  updated(el, binding) {
+    if (binding.value !== el._markdownContent) {
+      updateElement(el, binding.value, binding.arg);
+    }
+  }
+};
+
+// 核心渲染逻辑
+function updateElement(el, rawMarkdown, formatFn) {
+  el._markdownContent = rawMarkdown; // 缓存内容
+
+  // A. 表格补全逻辑 (防止解析抖动)
+  let contentToRender = rawMarkdown || '';
+  const lines = contentToRender.split('\n');
+  const lastLine = lines[lines.length - 1].trim();
+  // 如果最后一行看起来是未闭合的表格行，手动补全竖线
+  if (lastLine.startsWith('|') && !lastLine.endsWith('|') && !/^[|\s-:]+$/.test(lastLine)) {
+    contentToRender += ' |';
+  }
+
+  // B. 生成 HTML 字符串 (调用您原有的 formatMessage)
+  // 注意：这里假设 formatFn 是您组件里的 formatMessage 方法
+  // 如果 formatFn 不存在，退化为简单的 md.render
+  let newHtml = '';
+  if (typeof formatFn === 'function') {
+    newHtml = formatFn(contentToRender); 
+  } else if (window.md) {
+    newHtml = window.md.render(contentToRender);
+  }
+
+  // C. 构造新 DOM 树容器
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = newHtml;
+  
+  // D. 使用 morphdom 进行增量更新
+  // 这就是"丝滑"的关键：它只修改变动的部分，保留旧 DOM 的动画状态
+  morphdom(el, wrapper, {
+    childrenOnly: true, // 仅更新子节点
+    
+    // 性能优化：跳过不需要更新的节点
+    onBeforeElUpdated: (fromEl, toEl) => {
+      // 1. 保护 MathJax 公式不被重绘 (防止公式闪烁)
+      if (fromEl.classList.contains('MathJax') || fromEl.tagName === 'MJX-CONTAINER') {
+        return false; 
+      }
+      // 2. 保护代码块，如果内容没变就不动 (防止高亮丢失)
+      if (fromEl.tagName === 'PRE' && fromEl.isEqualNode(toEl)) {
+        return false;
+      }
+      return true;
+    },
+    
+    // 节点添加后的回调
+    onNodeAdded: (node) => {
+      // 可以在这里触发 highlight.js 或 mathjax 对新节点的渲染
+      if (node.tagName === 'PRE' && window.hljs) {
+         // hljs.highlightElement(node); // 如果 formatMessage 里没做，可以在这做
+      }
+    }
+  });
+
+  // E. 触发 MathJax 渲染 (Debounced)
+  // 建议在组件 methods 里定义一个防抖的 queueMathJax，这里简单模拟
+  if (window.MathJax) {
+    // 使用 Promise 队列防止冲突，这里简化处理
+    setTimeout(() => {
+      window.MathJax.typesetPromise([el]).catch(()=>{});
+    }, 50);
+  }
+}
   </script>
   <!-- Include markdown-it and highlight.js scripts -->
   <script src="libs/markdown-it.min.js"></script>
   <script src="libs/markdown-it-task-lists.min.js"></script>
   <script src="libs/markdown-it-footnote.min.js"></script>
   <script src="libs/markdown-it-container.min.js"></script>
+  <script src="libs/morphdom-umd.min.js"></script>
   <script src="libs/highlight.min.js"></script>
   <script src="js/locales.js"></script>
   <script src="libs/mermaid.min.js"></script>
@@ -454,7 +532,7 @@ if ('serviceWorker' in navigator) {
                 ref="chatAreaRef"
                 :class="{ collapsed: !chatAreaOpen }" 
                 v-show="chatAreaOpen">
-              <div class="messages-container" ref="messagesContainer"   v-if="!isCapsuleMode">
+              <div class="messages-container" ref="messagesContainer"   v-if="!isCapsuleMode" @click="handleGlobalClick">
                 <div v-for="(message, index) in messages" :key="index" class="message" :class="message.role">
                   <div v-if="ttsSettings.enabled && message.role === 'assistant'" class="tts-controls">
                     <el-tooltip :content="message.isPlaying || false ? t('pause') : t('play')">
@@ -512,20 +590,33 @@ if ('serviceWorker' in navigator) {
                     </div>
                     <!-- AI回复内容 -->
                     <div v-else-if="message.role === 'assistant'" class="markdown-body">
-                        <!-- 如果开启了 Briefly 模式 -->
-                        <div v-if="message.briefly" v-html="formatMessage(message.pure_content??message.content, index)"></div>
+                        <!-- Briefly 模式 (通常是静态的，可以用 v-html，或者也用 v-morph) -->
+                        <div 
+                            v-if="message.briefly" 
+                            v-html="formatMessage(message.pure_content??message.content, index)">
+                        </div>
                         
                         <!-- 正常模式：混合渲染 -->
                         <div v-else>
                             <template v-for="(segment, segIndex) in splitMessageContent(message.content)" :key="segIndex">
-                                <!-- 文本段：使用你原有的 formatMessage 处理 markdown/latex -->
+                                
+                                <!-- 🌟 重点修改这里 🌟 -->
+                                <!-- 1. 添加 class="streaming" 用于 CSS 光标特效 -->
+                                <!-- 2. 使用 v-morph 指令替代 v-html -->
+                                <!-- 3. 将 formatMessage 作为参数传递 (或者在指令内部直接调用全局的 md) -->
+                                <!-- 注意：我们需要传递一个箭头函数或者绑定上下文，让指令能调用 formatMessage -->
                                 <div 
                                     v-if="segment.type === 'text'" 
-                                    v-html="formatMessage(segment.content, index)"
-                                    style="display: inline;"
+                                    class="stream-content"
+                                    :class="{ 'streaming': isTyping && index === messages.length - 1 && segIndex === splitMessageContent(message.content).length - 1 }"
+                                    v-morph:format="segment.content" 
+                                    style="display: inline-block; width: 100%;"
                                 ></div>
+                                <!-- 如果您无法轻松传递 formatMessage 方法，请在指令 updateElement 中直接使用 window.md.render 
+                                    并把 formatMessage 中的后处理逻辑（如 latex 占位）移到 updateElement 中 
+                                -->
 
-                                <!-- UI段：渲染组件 -->
+                                <!-- UI段：渲染组件 (保持不变) -->
                                 <a2-u-i-renderer 
                                     v-else-if="segment.type === 'ui'"
                                     :config="segment.content"
@@ -533,9 +624,11 @@ if ('serviceWorker' in navigator) {
                                 ></a2-u-i-renderer>
                             </template>
                             
-                            <!-- 思考中 loading (保持原样) -->
-                            <div v-if="isTyping && index === messages.length - 1 && !message.content">
-                                <i class="fa-solid fa-spinner fa-spin"></i>
+                            <!-- 思考中 loading (保留，但 CSS 里的光标特效已经很强了，这个可以作为冗余) -->
+                            <div 
+                              v-if="isTyping && index === messages.length - 1 && !message.content" 
+                            >
+                              <i class="fa-solid fa-spinner fa-spin"></i>
                             </div>
                         </div>
                     </div>

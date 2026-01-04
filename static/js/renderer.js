@@ -821,15 +821,6 @@ const app = Vue.createApp({
     window.removeEventListener('resize', this.handleResize);
   },
   watch: {
-    messages: {
-      handler() {
-        // 这里的 setTimeout 是为了等待 Markdown 渲染库完成 DOM 更新
-        setTimeout(() => {
-          this.addTableEnhancements();
-        }, 300); 
-      },
-      deep: true
-    },
 
     'ttsSettings.engine': function(newVal) {
       if (newVal === 'systemtts') {
@@ -1302,7 +1293,35 @@ const app = Vue.createApp({
   },
   methods: {
     ...vue_methods,
+  },
+  directives: {
+    morph: {
+      mounted(el, binding, vnode) {
+        // 获取组件实例 context
+        const vm = binding.instance; 
+        el._update = (content) => {
+           // 使用 morphdom 的逻辑 (参考上文 script 中的 updateElement)
+           // 这里的 formatFn 我们直接调用组件的 methods
+           const html = vm.formatMessage(content, -1); // 传入内容进行渲染
+           
+           // ... 执行 morphdom(el, html_wrapper) ...
+           // (将上文 step 2 的 updateElement 逻辑复制到这里)
+           
+           // 简单版实现：
+           const wrapper = document.createElement('div');
+           wrapper.innerHTML = html;
+           morphdom(el, wrapper, { childrenOnly: true });
+        };
+        el._update(binding.value);
+      },
+      updated(el, binding) {
+        if (binding.value !== binding.oldValue) {
+           el._update(binding.value);
+        }
+      }
+    }
   }
+
 });
 
 function showNotification(message, type = 'success') {
