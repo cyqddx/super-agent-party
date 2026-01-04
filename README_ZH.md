@@ -16,7 +16,6 @@
   <a href="https://www.youtube.com/@LLM-party"><img src="https://img.shields.io/badge/YouTube-订阅频道-FF0000?style=for-the-badge&logo=youtube"/></a>
   <a href="https://gcnij7egmcww.feishu.cn/wiki/DPRKwdetCiYBhPkPpXWcugujnRc"><img src="https://img.shields.io/badge/中文使用指南-飞书文档-00CDCD?style=for-the-badge&logo=docsdotrs"/></a>
   <a href="https://temporal-lantern-7e8.notion.site/super-agent-party-211b2b2cb6f180c899d1c27a98c4965d"><img src="https://img.shields.io/badge/English%20Usage%20Guide-Notion-000000?style=for-the-badge&logo=notion"/></a>
-  <a href="https://pan.baidu.com/share/init?surl=VBSnq4Ga3fRX_NcyPwsV7Q&pwd=2333"><img src="https://img.shields.io/badge/网盘下载-百度网盘-2E58D4?style=for-the-badge&logo=baidu"/></a>
   <a href="#快速开始"><img src="https://img.shields.io/badge/快速开始-下载-0052CC?style=for-the-badge&logo=github"/></a>
 </div>
 
@@ -64,27 +63,27 @@
 
 ## 快速开始
 
-### 网盘下载
-
-  👉 [点击百度云下载](https://pan.baidu.com/share/init?surl=VBSnq4Ga3fRX_NcyPwsV7Q&pwd=2333)
-  
-  👉 [点击谷歌云下载](https://drive.google.com/drive/folders/1xu8U1FCIZ5iqWpmf1w3TLX8AqGWft3zg?usp=sharing)
+### 中国用户下载请点击 **中国用户点击下载** 的链接！
 
 ### windows整合包（推荐！免安装源码版本，支持一键同步到仓库最新版本，无需等待桌面版打包）
 
-  👉 [点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/super-agent-party-win-v0.3.5.7z)
+  👉 [国际用户点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/super-agent-party-win-v0.3.5.7z)
+  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/super-agent-party-win-v0.3.5.7z)
+
 
 ⭐注意！你可以双击`一键更新(update).bat`更新软件，也可以双击`一键启动(start).bat`启动软件。操作系统需要是**Windows 10/11、Window Server 2025**或者后续版本！
 
 ### windows桌面版安装
 
-  👉 [点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/Super-Agent-Party-Setup-0.3.5.exe)
+  👉 [国际用户点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/Super-Agent-Party-Setup-0.3.5.exe)
+  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/Super-Agent-Party-Setup-0.3.5.exe)
 
 ⭐注意！安装时选择仅为当前用户安装，否则启动时需要管理员权限。操作系统需要是**Windows 10/11、Window Server 2025**或者后续版本！
 
 ### MacOS整合包（目前只支持M芯片，适合开发者，同样是免安装源码版本，支持一键同步到仓库最新版本，无需等待桌面版打包）
 
-  👉 [点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/super-agent-party-mac-v0.3.5.7z)
+  👉 [国际用户点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/super-agent-party-mac-v0.3.5.7z)
+  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/super-agent-party-mac-v0.3.5.7z)
 
 ⭐注意！你可以在终端使用`一键更新(update).sh`更新软件，也可以在终端使用`一键启动(start).sh`启动软件。在使用前，记得给文件加权限！
 
@@ -97,7 +96,8 @@
 
 ### MacOS桌面版安装（目前只支持M芯片）
 
-  👉 [点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/Super-Agent-Party-0.3.5-Mac.dmg)
+  👉 [国际用户点击下载](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/Super-Agent-Party-0.3.5-Mac.dmg)
+  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/Super-Agent-Party-0.3.5-Mac.dmg)
 
 ⭐注意！下载后将dmg文件的app文件拖入`/Applications`目录下，然后打开终端，执行以下命令并输入root密码，从而移除从网络下载附加的Quarantine属性：
 

@@ -16,7 +16,7 @@
   <a href="https://www.youtube.com/@LLM-party"><img src="https://img.shields.io/badge/YouTube-Subscribe-FF0000?style=for-the-badge&logo=youtube"/></a>
   <a href="https://gcnij7egmcww.feishu.cn/wiki/DPRKwdetCiYBhPkPpXWcugujnRc"><img src="https://img.shields.io/badge/中文使用指南-飞书文档-00CDCD?style=for-the-badge&logo=docsdotrs"/></a>
   <a href="https://temporal-lantern-7e8.notion.site/super-agent-party-211b2b2cb6f180c899d1c27a98c4965d"><img src="https://img.shields.io/badge/English%20Guide-Notion-000000?style=for-the-badge&logo=notion"/></a>
-  <a href="https://pan.baidu.com/share/init?surl=VBSnq4Ga3fRX_NcyPwsV7Q&pwd=2333"><img src="https://img.shields.io/badge/网盘下载-百度网盘-2E58D4?style=for-the-badge&logo=baidu"/></a>
+  <a href="./README_ZH.md#快速开始"><img src="https://img.shields.io/badge/快速开始-下载-0052CC?style=for-the-badge&logo=github"/></a>
   <a href="#quick-start"><img src="https://img.shields.io/badge/Quick%20Start-Download-0052CC?style=for-the-badge&logo=github"/></a>
 </div>
 
@@ -64,27 +64,26 @@
 
 ## Quick Start
 
-### Cloud disk download
-
-  👉 [Click Baidu Cloud to download](https://pan.baidu.com/share/init?surl=VBSnq4Ga3fRX_NcyPwsV7Q&pwd=2333)
-  
-  👉 [Click Google Cloud to download](https://drive.google.com/drive/folders/1xu8U1FCIZ5iqWpmf1w3TLX8AqGWft3zg?usp=sharing)
+### 中国用户下载请点击 **中国用户点击下载** 的链接！
 
 ### Windows portable package (Recommended! Installation-free source version, support one-click synchronization to the latest version of the warehouse, no need to wait for the desktop version to be packaged)
 
   👉 [Click to download](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/super-agent-party-win-v0.3.5.7z)
+  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/super-agent-party-win-v0.3.5.7z)
 
 ⭐ Note!  You can double-click `一键更新(update).bat` to update the software, or you can double-click `一键启动(start).bat` to start the software.The operating system must be **Windows 10/11, Windows Server 2025**, or a later version!
 
 ### Windows Desktop Installation
 
   👉 [Click to download](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/Super-Agent-Party-Setup-0.3.5.exe)
+  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/Super-Agent-Party-Setup-0.3.5.exe)
 
 ⭐ Note! Choose to install only for the current user during installation, otherwise, administrator privileges will be required to start.The operating system must be **Windows 10/11, Windows Server 2025**, or a later version!
 
 ### macOS portable package (Currently only M chips are supported, developer-oriented, no-install source version, one-click sync to latest repo, no need to wait for desktop build)
 
   👉 [Click to download](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/super-agent-party-mac-v0.3.5.7z)
+  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/super-agent-party-mac-v0.3.5.7z)
 
 ⭐ Note! You can update the software in Terminal with `one-click update(update).sh` or launch it with `one-click start(start).sh`. Remember to grant permissions before use!
 
@@ -98,6 +97,7 @@
 ### MacOS Desktop Installation (Currently only M chips are supported.)
 
   👉 [Click to download](https://github.com/heshengtao/super-agent-party/releases/download/v0.3.5/Super-Agent-Party-0.3.5-Mac.dmg)
+  👉 [中国用户点击下载](https://modelscope.cn/models/ailm32442/super-agent-party-portable/resolve/master/Super-Agent-Party-0.3.5-Mac.dmg)
 
 ⭐Attention! After downloading, drag the app file of the dmg file into the `/Applications` directory, then open end point, execute the following command and enter the root password to remove the attached Quarantine attribute from the network download:
 
