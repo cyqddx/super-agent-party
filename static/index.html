@@ -6699,6 +6699,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                             :underline="false"
                             href="https://browsermcp.io/install" 
                             target="_blank"
+                            v-if="chromeMCPSettings.type=='external'"
                           >
                             <el-icon class="mr-1">
                               <i class="fa-solid fa-key"></i>
@@ -6719,11 +6720,26 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <el-switch v-model="chromeMCPSettings.enabled" @click.stop @change="changeChromeMCPEnabled"/>
                     </div>
                     <div class="tool-content">
-                      <el-alert type="info" :closable="false" class="mb-2">
+                      <el-form-item :label="t('browserType')">
+                        <el-select
+                          v-model="chromeMCPSettings.type"
+                          @change="autoSaveSettings"
+                          class="full-width-input"
+                        >
+                          <el-option :label="t('internalBrowser')" value="internal" v-if="isElectron"></el-option>
+                          <el-option :label="t('externalBrowser')" value="external" ></el-option>
+                        </el-select>
+                      </el-form-item>
+                      <el-alert type="info" :closable="false" class="mb-2" v-if="chromeMCPSettings.type=='external'">
                         <div class="alert-content">
                           {{ t('browserNotice1') }}<br>
                           {{ t('browserNotice2') }}<br>
                           {{ t('browserNotice3') }}
+                        </div>
+                      </el-alert>
+                      <el-alert type="info" :closable="false" class="mb-2" v-if="chromeMCPSettings.type=='internal'">
+                        <div class="alert-content">
+                          {{ t('browserNotice4') }}
                         </div>
                       </el-alert>
                     </div>

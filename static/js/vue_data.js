@@ -346,6 +346,7 @@ let vue_data = {
     },
     chromeMCPSettings: {
       enabled: false,
+      type:"external" // external or internal
     },
     sqlSettings:{
       enabled: false,
