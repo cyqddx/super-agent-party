@@ -11793,19 +11793,25 @@ async togglePlugin(plugin) {
     navigateTo(url) {
         if (!this.currentTab) return;
         
+        // 1. 如果是刷新当前页面（URL 没变）
+        if (this.currentTab.url === url) {
+            const webview = document.getElementById('webview-' + this.currentTabId);
+            // 只有当 webview 确实存在且方法可用时才重载
+            if (webview && typeof webview.reload === 'function') {
+                try {
+                    webview.reload();
+                } catch (e) {
+                    // 忽略未准备好的错误
+                    console.warn('Webview not ready for reload');
+                }
+            }
+            return;
+        }
+
+        // 2. 如果是新 URL，直接赋值即可
+        // Vue 会更新 :src 属性，Electron 会自动识别并加载，不需要手动调 loadURL
         this.currentTab.url = url;
         this.urlInput = url;
-        
-        // 强制 Vue 更新后，获取 webview DOM 并加载 URL
-        // 因为如果之前 url 为空，webview 是 v-if 销毁状态，现在才渲染出来
-        this.$nextTick(() => {
-            const webview = document.getElementById('webview-' + this.currentTabId);
-            if (webview) {
-                // 如果 webview 刚创建，直接设置 src 属性即可 (Vue绑定已处理)
-                // 但如果它已经存在，调用 loadURL 更稳
-                 webview.loadURL(url);
-            }
-        });
     },
     
     // 回到主页 (新标签页)
