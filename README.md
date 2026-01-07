@@ -243,7 +243,7 @@ This open-source project and its content (hereinafter referred to as the "projec
    a. Non-high-frequency concurrency: Due to reliance on LLM reasoning speed (3–5 seconds per step) and built-in randomized human-like delay algorithms, the tool's operation frequency is strictly lower than the maximum manual speed of a typical human user.  
    b. No server pressure: This tool does not support multi-threaded concurrency, batch data scraping, or DDoS attacks. From the server's perspective, its behavior is indistinguishable from that of a regular human user and will not impose additional load on the target website's server.
 
-4. Sensitive Information Warning: Do not use this tool on banking, payment gateway, or highly confidential information pages. The developer is not liable for privacy breaches resulting from improper use.
+4. Do not use this tool on banking sites, payment gateways, or pages containing highly confidential information. The developer is not responsible for privacy breaches resulting from improper user operations. Prohibited activities include large-scale data scraping, bypassing security mechanisms, network interference, and any actions that violate laws and regulations.
 
 By using these features, users are deemed to have acknowledged and agreed to assume the associated risks. The developer does not recommend or encourage the use of these features in commercial or large-scale deployment scenarios.
 

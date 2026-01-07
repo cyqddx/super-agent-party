@@ -7628,6 +7628,7 @@ handleCreateDiscordSeparator(val) {
         
         // 保存最新的端口到配置文件 (可选，为了稳妥)
         await this.autoSaveSettings();
+        showNotification(this.t('success_start_browserControl'));
     }
     if (this.chromeMCPSettings.enabled && this.chromeMCPSettings.type === 'external'){
       const response = await fetch('/start_ChromeMCP',{
@@ -7658,11 +7659,15 @@ handleCreateDiscordSeparator(val) {
       if (response.ok){
         const data = await response.json();
         console.log(data);
-        showNotification(this.t('success_stop_browserControl'));
+        if (this.chromeMCPSettings.type === 'external'||!this.chromeMCPSettings.enabled){
+          showNotification(this.t('success_stop_browserControl'));
+        }
       }else {
         this.chromeMCPSettings.enabled = true;
         console.error('停止ChromeMCP失败');
-        showNotification(this.t('error_stop_browserControl'), 'error');
+        if (this.chromeMCPSettings.type === 'external'||!this.chromeMCPSettings.enabled){
+          showNotification(this.t('error_stop_browserControl'), 'error');
+        }
       }
     }
     this.autoSaveSettings();

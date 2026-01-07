@@ -6685,6 +6685,19 @@ function updateElement(el, rawMarkdown, formatFn) {
 
               <!-- 浏览器控制界面 -->
               <div v-show="subMenu === 'chromeMCP'" class="page">
+               <!-- 顶部说明条 -->
+                <div class="toolbar">
+                    <el-alert
+                      :title="t('chromeMCPDescription')"
+                      type="info"
+                      :closable="false"
+                      class="mb-2"
+                    >
+                      1. {{ t('chromeMCPNotice') }}<br>
+                      2. {{ t('chromeMCPNotice2') }}<br>
+                      3. {{ t('chromeMCPNotice3') }}
+                    </el-alert>
+                </div>
                 <el-form :model="chromeMCPSettings" class="settings-form"  label-position="top">
                   <div class="tool-item">
                     <div class="tool-header">
