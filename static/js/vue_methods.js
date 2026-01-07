@@ -4761,7 +4761,7 @@ handleCreateDiscordSeparator(val) {
     },
     checkMobile() {
       this.isMobile = window.innerWidth <= 768;
-      this.isAssistantMode = window.innerWidth <= 350 && window.innerHeight <= 680;
+      this.isAssistantMode = window.innerWidth <= 350 && window.innerHeight <= 820;
       this.isCapsuleMode = window.innerWidth <= 230 && window.innerHeight <= 100;
       if (this.isMobile) {
         this.MoreButtonDict = this.smallMoreButtonDict;
@@ -9334,9 +9334,8 @@ stopTTSActivities() {
       window.electronAPI.windowAction('maximize'); // 恢复默认大小
     } else {
       // 进入助手模式，设置为300x屏幕高度
-      const screenHeight = window.screen.availHeight || window.innerHeight || 800;
-      console.log('进入助手模式，设置大小为:', 340, screenHeight);
-      window.electronAPI.toggleWindowSize(340, screenHeight);
+      console.log('进入助手模式，设置大小为:', 340, 800);
+      window.electronAPI.toggleWindowSize(340, 800);
     }
 
     this.sidePanelOpen = false;
