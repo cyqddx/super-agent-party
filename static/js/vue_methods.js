@@ -1295,18 +1295,13 @@ let vue_methods = {
           if (this.HASettings.enabled) {
             this.changeHAEnabled();
           };
+          await this.initChromeMCPSettings();
           if (this.chromeMCPSettings.enabled){
             this.changeChromeMCPEnabled();
           }
           if (this.sqlSettings.enabled){
             this.changeSqlEnabled();
           }
-          // 循环查找mcpServers中是否有enabled为true的项，对于每一项都执行restartMCPServer(name)方法
-          this.mcpServers.forEach(server => {
-            if (server.enabled) {
-              this.restartMCPServer(server.name);
-            }
-          });
           this.changeMemory();
           // this.target_lang改成navigator.language || navigator.userLanguage;
           this.target_lang = this.targetLangSelected!="system"? this.targetLangSelected: navigator.language || navigator.userLanguage || 'zh-CN';
@@ -7610,6 +7605,30 @@ handleCreateDiscordSeparator(val) {
     this.autoSaveSettings();
   },
   async changeChromeMCPEnabled(){
+
+    if (this.chromeMCPSettings.enabled && this.chromeMCPSettings.type === 'internal') {
+        if (!window.electronAPI) return;
+
+        // 获取主进程实际状态
+        const cdpInfo = await window.electronAPI.getInternalCDPInfo();
+
+        if (!cdpInfo.active) {
+            // 严重情况：前端想开，但主进程没开端口（说明没重启）
+            this.chromeMCPSettings.enabled = false; // 回滚开关
+            
+            this.showRestartDialog = true;
+            
+            return; // 终止后续流程
+        }
+
+        // 主进程已开启端口 -> 关键步骤：同步随机端口！
+        // 这样发给后端的 JSON 里 CDPport 才是主进程真正监听的端口 (例如 9527)
+        this.chromeMCPSettings.CDPport = cdpInfo.port;
+        console.log(`[CDP] 准备启动 MCP，使用实际端口: ${cdpInfo.port}`);
+        
+        // 保存最新的端口到配置文件 (可选，为了稳妥)
+        await this.autoSaveSettings();
+    }
     if (this.chromeMCPSettings.enabled){
       const response = await fetch('/start_ChromeMCP',{
         method: 'POST',
@@ -12155,5 +12174,38 @@ async togglePlugin(plugin) {
             this.showDownloadDropdown = false;
             this.dropdownTimer = null;
         }, 300); 
+    },
+    async handlechromeMCPTypeChange() {
+        // 1. 先保存用户的选择
+        await window.electronAPI.saveChromeSettings(JSON.parse(JSON.stringify(this.chromeMCPSettings)));
+        await this.autoSaveSettings();
+        // 2. 如果切换到了“内置浏览器” (Internal)
+        if (this.chromeMCPSettings.type === 'internal') {
+          this.showRestartDialog = true;
+        } else {
+            // 如果切回 External，不需要重启，直接保存即可
+            // 此时如果端口还开着也没关系，Python 不连它就行
+        }
+    },
+
+    async initChromeMCPSettings() {
+        if (!window.electronAPI) return;
+
+        // 1. 询问主进程：你现在开 CDP 了吗？端口是多少？
+        const cdpInfo = await window.electronAPI.getInternalCDPInfo();
+        
+        // 2. 如果主进程确实开启了内部模式
+        if (cdpInfo.active) {
+            console.log(`[Frontend] 检测到内部 CDP 已激活，端口: ${cdpInfo.port}`);
+            
+            // 强制同步前端数据
+            this.chromeMCPSettings.type = 'internal'; 
+            this.chromeMCPSettings.CDPport = cdpInfo.port;
+            
+            // 这里不一定强制 enabled = true，因为 enabled 代表“Python服务是否在运行”
+            // 但如果 Electron 开了端口，通常意味着配置里 enabled 是 true
+            // 我们更新配置文件，确保端口是最新的
+            await this.autoSaveSettings();
+        }
     },
 }

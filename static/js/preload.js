@@ -74,6 +74,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showContextMenu: (menuType, data) => ipcRenderer.invoke('show-context-menu', { menuType, data }),
   //保存环境变量
   setNetworkVisibility: (visible) => ipcRenderer.invoke('set-env', { key: 'networkVisible', value: visible }), 
+  
+  saveChromeSettings: (settings) => ipcRenderer.invoke('save-chrome-config', settings),
+  getInternalCDPInfo: () => ipcRenderer.invoke('get-internal-cdp-info'),
   //重启app
   restartApp: () => ipcRenderer.invoke('restart-app'),
   startVRMWindow: (windowConfig) => ipcRenderer.invoke('start-vrm-window', windowConfig),

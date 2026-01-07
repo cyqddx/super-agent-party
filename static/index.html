@@ -6720,13 +6720,13 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <el-switch v-model="chromeMCPSettings.enabled" @click.stop @change="changeChromeMCPEnabled"/>
                     </div>
                     <div class="tool-content">
-                      <el-form-item :label="t('browserType')">
+                      <el-form-item :label="t('browserType')"  v-if="isElectron">
                         <el-select
                           v-model="chromeMCPSettings.type"
-                          @change="autoSaveSettings"
+                          @change="handlechromeMCPTypeChange"
                           class="full-width-input"
                         >
-                          <el-option :label="t('internalBrowser')" value="internal" v-if="isElectron"></el-option>
+                          <el-option :label="t('internalBrowser')" value="internal" ></el-option>
                           <el-option :label="t('externalBrowser')" value="external" ></el-option>
                         </el-select>
                       </el-form-item>
@@ -6737,16 +6737,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                           {{ t('browserNotice3') }}
                         </div>
                       </el-alert>
-                      <el-form-item :label="t('CDPport')" v-if="chromeMCPSettings.type=='internal'">
-                          <el-slider
-                            v-model="chromeMCPSettings.CDPport"
-                            :step="1"
-                            :min="0"
-                            :max="65535"
-                            @input="autoSaveSettings"
-                            show-input
-                          ></el-slider>
-                      </el-form-item>
                       <el-alert type="info" :closable="false" class="mb-2" v-if="chromeMCPSettings.type=='internal'">
                         <div class="alert-content">
                           {{ t('browserNotice4') }}<br>
@@ -9168,21 +9158,20 @@ function updateElement(el, rawMarkdown, formatFn) {
               </el-alert>
             </div>
           </el-form>
-          <!--eldialog 询问用户是否立即重启-->
-          <el-dialog
-            :title="t('restartConfirm')"
-            v-model="showRestartDialog"
-            width="600px">
-            <span>{{ t('restartConfirmText') }}</span>
-            <template #footer>
-              <span class="dialog-footer">
-                <el-button @click="showRestartDialog = false">{{ t('cancel') }}</el-button>
-                <el-button type="primary" @click="restartApp">{{ t('confirmRestart') }}</el-button>
-              </span>
-            </template>
-          </el-dialog>
         </div>
-
+        <!--eldialog 询问用户是否立即重启-->
+        <el-dialog
+          :title="t('restartConfirm')"
+          v-model="showRestartDialog"
+          width="600px">
+          <span>{{ t('restartConfirmText') }}</span>
+          <template #footer>
+            <span class="dialog-footer">
+              <el-button @click="showRestartDialog = false">{{ t('cancel') }}</el-button>
+              <el-button type="primary" @click="restartApp">{{ t('confirmRestart') }}</el-button>
+            </span>
+          </template>
+        </el-dialog>
         <!-- 在内容区添加存储空间界面 -->
         <div v-show="activeMenu === 'storage'" class="page storage-container">
           <div class="suite-layout">

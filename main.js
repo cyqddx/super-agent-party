@@ -271,15 +271,66 @@ function getConfigPath() {
 function loadEnvVariables() {
   const configPath = getConfigPath();
   if (fs.existsSync(configPath)) {
-    const rawData = fs.readFileSync(configPath);
-    const config = JSON.parse(rawData);
-    for (const key in config) {
-      process.env[key] = config[key];
+    try {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      
+      // 遍历配置加载到环境变量
+      for (const key in config) {
+        const val = config[key];
+        // ★ 同样只把基本类型加载到 env
+        if (typeof val === 'string' || typeof val === 'number') {
+          process.env[key] = val;
+        }
+      }
+      return config; // ★ 返回完整配置对象给 CDP 逻辑使用
+    } catch (e) {
+      console.error('加载配置失败:', e);
     }
+  }
+  return {};
+}
+
+function saveEnvVariable(key, value) {
+  const configPath = getConfigPath();
+  let config = {};
+  
+  // 1. 读取现有文件
+  try {
+    if (fs.existsSync(configPath)) {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+  } catch (e) { console.error('配置文件读取出错:', e); }
+
+  // 2. 更新文件内容 (对象和字符串都能存)
+  config[key] = value;
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  
+  // 3. ★ 关键改进：类型检查 ★
+  // 只有字符串或数字才写入 process.env，防止对象变 "[object Object]"
+  if (typeof value === 'string' || typeof value === 'number') {
+    process.env[key] = value;
   }
 }
 
-loadEnvVariables();
+const globalConfig = loadEnvVariables();
+
+// 定义全局变量
+let SESSION_CDP_PORT = 0; // 初始为0
+let IS_INTERNAL_MODE_ACTIVE = false;
+
+if (globalConfig?.chromeMCPSettings?.type === 'internal') {
+  
+  // ★ 修改点 1：使用端口 '0'，让系统自动分配一个绝对安全的空闲端口
+  app.commandLine.appendSwitch('remote-debugging-port', '0');
+  
+  // ★ 修改点 2：显式绑定到 127.0.0.1，防止防火墙报警
+  app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1');
+  
+  app.commandLine.appendSwitch('remote-allow-origins', '*');
+  
+  IS_INTERNAL_MODE_ACTIVE = true;
+  console.log('[CDP] 已请求系统自动分配调试端口...');
+}
 
 // 新增：检测端口是否可用
 function isPortAvailable(port) {
@@ -302,23 +353,6 @@ async function findAvailablePort(startPort = DEFAULT_PORT, maxAttempts = 20000) 
     }
   }
   throw new Error(`无法找到可用端口，已尝试 ${startPort} 到 ${startPort + maxAttempts - 1}`)
-}
-
-const networkVisible = process.env.networkVisible === 'global';
-const BACKEND_HOST = networkVisible ? '0.0.0.0' : HOST
-// 保存环境变量
-function saveEnvVariable(key, value) {
-  const configPath = getConfigPath();
-  let config = {};
-  if (fs.existsSync(configPath)) {
-    const rawData = fs.readFileSync(configPath);
-    config = JSON.parse(rawData);
-  }
-  config[key] = value;
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  
-  // 更新当前进程中的环境变量
-  process.env[key] = value;
 }
 
 
@@ -404,8 +438,7 @@ async function startBackend() {
       spawnOptions.windowsVerbatimArguments = false
     }
 
-    const networkVisible = process.env.networkVisible === 'global'
-    const BACKEND_HOST = networkVisible ? '0.0.0.0' : HOST
+    const BACKEND_HOST = (globalConfig?.networkVisible === 'global') ? '0.0.0.0' : '127.0.0.1';
 
     if (isDev) {
       console.log(`🐍 Starting development mode backend: ${pythonExec}`)
@@ -729,6 +762,49 @@ app.whenReady().then(async () => {
     
     // 后端服务准备就绪后，加载完整内容
     console.log(`Backend server is running at http://${HOST}:${PORT}`)
+
+    if (IS_INTERNAL_MODE_ACTIVE) {
+        try {
+            // Electron 会将活动端口写入 userData 目录下的 DevToolsActivePort 文件
+            const portFile = path.join(app.getPath('userData'), 'DevToolsActivePort');
+            
+            // 给一点点时间确保文件写入（通常 Ready 时已经有了，为了稳妥可以用个简单的轮询，这里直接读通常没问题）
+            // 如果读取失败，尝试等待 500ms
+            if (!fs.existsSync(portFile)) {
+                await new Promise(r => setTimeout(r, 500));
+            }
+            
+            if (fs.existsSync(portFile)) {
+                const content = fs.readFileSync(portFile, 'utf8');
+                // 文件格式第一行是端口号，第二行是路径
+                const realPort = parseInt(content.split('\n')[0], 10);
+                
+                if (!isNaN(realPort)) {
+                    SESSION_CDP_PORT = realPort;
+                    console.log(`✅ [CDP] 成功获取系统分配端口: ${SESSION_CDP_PORT}`);
+                }
+            } else {
+                console.error('❌ [CDP] 未找到 DevToolsActivePort 文件，无法获取端口');
+            }
+        } catch (e) {
+            console.error('❌ [CDP] 读取端口文件失败:', e);
+        }
+    }
+
+    // 1. 获取 CDP 状态 (前端初始化用)
+    ipcMain.handle('get-internal-cdp-info', () => {
+      return {
+        active: IS_INTERNAL_MODE_ACTIVE,
+        port: SESSION_CDP_PORT
+      };
+    });
+
+    // 3. 处理 Chrome 配置保存 (也是调用 saveEnvVariable)
+    // 前端传来的 settings 是一个对象，saveEnvVariable 现在能处理它了
+    ipcMain.handle('save-chrome-config', async (event, settings) => {
+      saveEnvVariable('chromeMCPSettings', settings);
+      return true;
+    });
 
     // 添加获取端口信息的 IPC 处理
     ipcMain.handle('get-server-info', () => {
