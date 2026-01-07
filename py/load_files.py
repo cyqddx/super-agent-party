@@ -163,7 +163,7 @@ async def handle_url(url):
     ext = os.path.splitext(parsed_url.path)[1].lstrip('.').lower()
 
     # --- 1. 内部上传文件处理逻辑 ---
-    if 'uploaded_files' in parsed_url.path:
+    if 'uploaded_files' in parsed_url.path or 'tool_temp' in parsed_url.path:
         HOST = get_host()
         PORT = get_port()
         if HOST == '0.0.0.0': HOST = '127.0.0.1'
