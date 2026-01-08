@@ -404,9 +404,7 @@ let vue_data = {
     ],
     imgHostOptions:[
       { value: 'smms', label: 'smms' },
-      { value: 'easyImage2', label: 'easyImage2' },
-      { value: 'gitee', label: 'gitee' },
-      { value: 'github', label: 'github' },
+      { value: 'easyImage2', label: 'easyImage2' }
     ],
     showRestartDialog: false,
     agents: {},
