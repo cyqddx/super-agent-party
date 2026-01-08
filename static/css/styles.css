@@ -6696,3 +6696,35 @@ hr.footnotes-sep {
 .ib-btn.is-favorite {
     color: #f5a623; /* 星星黄色 */
 }
+
+/* 引擎 Logo 图片样式 */
+.engine-logo-img {
+    width: 18px;    /* 稍微调小一点，显得更精致 */
+    height: 18px;
+    object-fit: contain;
+    border-radius: 4px; /* 微圆角，符合 iOS 图标美学 */
+    /* 增加一个非常微弱的投影，让 Logo 更有立体感 */
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+    transition: transform 0.2s ease;
+}
+
+/* 容器微调 */
+.current-engine {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* 图片和箭头之间的间距 */
+    padding: 2px 6px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+/* 悬停时 Logo 稍微放大 */
+.engine-selector:hover .engine-logo-img {
+    transform: scale(1.1);
+}
+
+/* 箭头的颜色适配 */
+.current-engine .fa-caret-down {
+    font-size: 10px;
+    color: var(--el-text-color-placeholder);
+}

@@ -12838,22 +12838,46 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <div class="ios-search-wrapper" :class="{ 'focused': isSearchFocused }">
                           <!-- 引擎切换器 -->
                           <div class="engine-selector" 
-                            @mouseenter="handleSelectorEnter" 
-                            @mouseleave="handleSelectorLeave">
+                              @mouseenter="handleSelectorEnter" 
+                              @mouseleave="handleSelectorLeave">
                               
                               <div class="current-engine">
-                                  <i class="fa-brands fa-microsoft" v-if="searchEngine === 'bing'"></i>
-                                  <i class="fa-brands fa-google" v-if="searchEngine === 'google'"></i>
+                                  <!-- 动态显示当前引擎的高清 Logo 图片 -->
+                                  <img 
+                                      v-if="searchEngine === 'bing'" 
+                                      src="./source/providers/bing.png" 
+                                      class="engine-logo-img" 
+                                      alt="Bing"
+                                  >
+                                  <img 
+                                      v-if="searchEngine === 'google'" 
+                                      src="./source/providers/google.png" 
+                                      class="engine-logo-img" 
+                                      alt="Google"
+                                  >
+                                  <!-- 下拉小箭头保留 -->
                                   <i class="fa-solid fa-caret-down"></i>
                               </div>
                               
-                              <!-- 下拉菜单 -->
+                              <!-- 下拉菜单：根据 showEngineDropdown 显示 -->
                               <div class="engine-dropdown" v-show="showEngineDropdown">
-                                  <div class="engine-item" @click="setSearchEngine('bing')" :class="{active: searchEngine === 'bing'}">
-                                      <i class="fa-brands fa-microsoft"></i> Bing
+                                  <div class="engine-item" 
+                                      @click="setSearchEngine('bing')" 
+                                      :class="{active: searchEngine === 'bing'}">
+                                  <img 
+                                      src="./source/providers/bing.png" 
+                                      class="engine-logo-img" 
+                                      alt="Bing"
+                                  > Bing
                                   </div>
-                                  <div class="engine-item" @click="setSearchEngine('google')" :class="{active: searchEngine === 'google'}">
-                                      <i class="fa-brands fa-google"></i> Google
+                                  <div class="engine-item" 
+                                      @click="setSearchEngine('google')" 
+                                      :class="{active: searchEngine === 'google'}">
+                                  <img 
+                                      src="./source/providers/google.png" 
+                                      class="engine-logo-img" 
+                                      alt="Google"
+                                  > Google
                                   </div>
                               </div>
                           </div>
