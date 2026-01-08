@@ -459,5 +459,6 @@
     "currentLanguage": "zh-CN",
     "isBtnCollapse": true,
     "is_sandbox": false,
-    "showBrowserChat": false
+    "showBrowserChat": false,
+    "searchEngine": "party"
 }

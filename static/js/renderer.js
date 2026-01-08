@@ -877,6 +877,15 @@ const app = Vue.createApp({
     window.removeEventListener('resize', this.handleResize);
   },
   watch: {
+    'searchEngine': function(newVal) {
+      if (newVal === 'party') {
+        this.searchEngineplaceholder = this.t('searchWithParty')
+      }else if (newVal === 'bing') {
+        this.searchEngineplaceholder = this.t('searchWithBing')
+      }else if (newVal === 'google') {
+        this.searchEngineplaceholder = this.t('searchWithGoogle')
+      }
+    },
     currentTheme: {
       handler(newVal) {
         // 等待 DOM 更新，确保 CSS 变量已变更

@@ -1255,6 +1255,7 @@ let vue_methods = {
           this.modelProviders = data.data.modelProviders || this.modelProviders;
           this.systemSettings = data.data.systemSettings || this.systemSettings;
           this.showBrowserChat = data.data.showBrowserChat || this.showBrowserChat;
+          this.searchEngine = data.data.searchEngine || this.searchEngine;
           if (data.data.largeMoreButtonDict) {
             this.largeMoreButtonDict = this.largeMoreButtonDict.map(existingButton => {
               const newButton = data.data.largeMoreButtonDict.find(button => button.name === existingButton.name);
@@ -2221,6 +2222,7 @@ let vue_methods = {
           workflows: this.workflows,
           custom_http: this.customHttpTools,
           showBrowserChat: this.showBrowserChat,
+          searchEngine: this.searchEngine,
         };
         const correlationId = uuid.v4();
         // 发送保存请求
@@ -11836,13 +11838,22 @@ async togglePlugin(plugin) {
     // 欢迎页搜索回车
     handleWelcomeSearch() {
         const query = this.welcomeSearchQuery.trim();
+        this.welcomeSearchQuery = ''; // 清空
         if (!query) return;
 
         let searchUrl = '';
         if (this.searchEngine === 'google') {
             searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-        } else {
+        } else if (this.searchEngine === 'bing') {
             searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+        } else {
+          if (this.chromeMCPSettings.enabled == false || this.chromeMCPSettings.type != 'internal'){
+            showNotification(this.t('notEnabledInternalBrowserBontrol'),'error')
+          }
+          this.showBrowserChat =true;
+          this.userInput=query;
+          this.sendMessage();
+          return;
         }
         
         this.navigateTo(searchUrl);
@@ -12396,7 +12407,7 @@ async togglePlugin(plugin) {
     async webviewClick(uid, dblClick = false) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (async function() {
             const el = document.querySelector('[data-ai-id="${uid}"]');
@@ -12461,7 +12472,7 @@ async togglePlugin(plugin) {
     async webviewFill(uid, value) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         // 注意：这里需要把 value 传给 JS，使用 JSON.stringify 确保安全
         const script = `
         (async function() {
@@ -12536,7 +12547,7 @@ async togglePlugin(plugin) {
     async webviewFillForm(elements) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const dataStr = JSON.stringify(elements); 
 
         const script = `
@@ -12569,7 +12580,7 @@ async togglePlugin(plugin) {
     async webviewDrag(fromUid, toUid) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (function() {
             const src = document.querySelector('[data-ai-id="${fromUid}"]');
@@ -12611,7 +12622,7 @@ async togglePlugin(plugin) {
     async webviewHover(uid) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (function() {
             const el = document.querySelector('[data-ai-id="${uid}"]');
@@ -12631,19 +12642,12 @@ async togglePlugin(plugin) {
         return result;
     },
 
-    // --- 7. 文件上传 (上传本身耗时，不再额外增加人为延迟，或者加一点也行) ---
-    async webviewUploadFile(uid, filePath) {
-        // ... (保持之前的错误提示或 IPC 逻辑) ...
-        // 如果这里能成功上传，建议也加一个 await this._humanDelay();
-        return "Error: File upload requires IPC/CDP setup.";
-    },
-
     // --- 8. 处理弹窗 (无延迟) ---
     async webviewHandleDialog(action, promptText) {
         // ... (代码保持不变，弹窗处理通常是瞬时的) ...
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (function() {
             window.__ai_dialog_action = "${action}"; 
@@ -12661,7 +12665,7 @@ async togglePlugin(plugin) {
     async webviewPressKey(keyCombo) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-        
+        wv.focus();
         try {
             const parts = keyCombo.split('+').map(k => k.trim());
             const key = parts.pop();
@@ -12685,7 +12689,7 @@ async togglePlugin(plugin) {
         // ... (代码保持不变) ...
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (function() {
             return new Promise((resolve) => {
@@ -12710,6 +12714,7 @@ async togglePlugin(plugin) {
     async captureWebviewScreenshot(fullPage = false, uid = null) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
+        wv.focus();
         try {
             // 1. 滚动 (如果指定元素)
             if (uid) {
@@ -12752,7 +12757,7 @@ async togglePlugin(plugin) {
     async executeInActiveWebview(codeStr, args = []) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         try {
             const script = `(${codeStr})(...${JSON.stringify(args || [])})`;
             const result = await wv.executeJavaScript(script);

@@ -202,11 +202,6 @@ async def press_key(key):
     """按键"""
     return await call_vue_method('webviewPressKey', [key])
 
-async def upload_file(uid, filePath):
-    """上传文件"""
-    # 这是一个复杂操作，需要 Vue 端配合 debugger 或 remote
-    return await call_vue_method('webviewUploadFile', [uid, filePath])
-
 # ------------------------------------------
 # Navigation Tools
 # ------------------------------------------
@@ -502,21 +497,6 @@ all_cdp_tools = [
                     "promptText": {"type": "string", "description": "Text to enter if the dialog is a prompt."}
                 },
                 "required": ["action"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "upload_file",
-            "description": "Upload a file to a specific file input element.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "uid": {"type": "string", "description": "The UID of the file input element."},
-                    "filePath": {"type": "string", "description": "The absolute local path of the file to upload."}
-                },
-                "required": ["uid", "filePath"]
             }
         }
     }
