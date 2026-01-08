@@ -1839,7 +1839,7 @@ main();`,
     showEngineDropdown: false, // 控制下拉菜单显示
     dropdownTimer: null, // 新增定时器变量
     isSearchFocused: false,    // 控制搜索框聚焦样式
-    searchEngine: 'bing', // 'bing' or 'google'
+    searchEngine: 'bing', // 'bing' or 'google' or 'party'
     welcomeSearchQuery: '',
     showDownloadDropdown: false,
     downloads: [], // 存储所有下载记录 { id, filename, totalBytes, receivedBytes, state, path, progress }
@@ -1847,4 +1847,5 @@ main();`,
     showBrowserChat: false,
     favorites: [],       // 存储收藏项列表
     showFavorites: true, // 控制欢迎页收藏夹的显示/隐藏状态
+    searchEngineplaceholder:'',
 };

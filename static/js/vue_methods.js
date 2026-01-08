@@ -1255,6 +1255,7 @@ let vue_methods = {
           this.modelProviders = data.data.modelProviders || this.modelProviders;
           this.systemSettings = data.data.systemSettings || this.systemSettings;
           this.showBrowserChat = data.data.showBrowserChat || this.showBrowserChat;
+          this.searchEngine = data.data.searchEngine || this.searchEngine;
           if (data.data.largeMoreButtonDict) {
             this.largeMoreButtonDict = this.largeMoreButtonDict.map(existingButton => {
               const newButton = data.data.largeMoreButtonDict.find(button => button.name === existingButton.name);
@@ -2221,6 +2222,7 @@ let vue_methods = {
           workflows: this.workflows,
           custom_http: this.customHttpTools,
           showBrowserChat: this.showBrowserChat,
+          searchEngine: this.searchEngine,
         };
         const correlationId = uuid.v4();
         // 发送保存请求
@@ -11836,16 +11838,64 @@ async togglePlugin(plugin) {
     // 欢迎页搜索回车
     handleWelcomeSearch() {
         const query = this.welcomeSearchQuery.trim();
+        this.welcomeSearchQuery = ''; // 清空输入框
         if (!query) return;
+
+        // --- 新增逻辑：URL 检测与直接跳转 ---
+        if (this.isUrl(query)) {
+            let targetUrl = query;
+            // 如果没有以 http:// 或 https:// 开头，默认补全 https://
+            if (!/^https?:\/\//i.test(targetUrl)) {
+                targetUrl = 'https://' + targetUrl;
+            }
+            this.navigateTo(targetUrl);
+            return;
+        }
+        // ------------------------------------
 
         let searchUrl = '';
         if (this.searchEngine === 'google') {
             searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-        } else {
+        } else if (this.searchEngine === 'bing') {
             searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+        } else {
+            if (this.chromeMCPSettings.enabled == false || this.chromeMCPSettings.type != 'internal') {
+                showNotification(this.t('notEnabledInternalBrowserBontrol'), 'error')
+            }
+            this.showBrowserChat = true;
+            this.userInput = query;
+            this.sendMessage();
+            return;
         }
-        
+
         this.navigateTo(searchUrl);
+    },
+
+    /**
+     * 辅助函数：判断字符串是否为 URL
+     * 规则：
+     * 1. 以 http/https 开头
+     * 2. 或者符合 域名.后缀 (如 google.com)
+     * 3. 或者 localhost
+     * 4. 或者 IP 地址
+     * 5. 且不包含空格
+     */
+    isUrl(str) {
+        // 简单判断：如果包含空格，通常是搜索词（除非是编码后的URL，但用户输入通常带空格）
+        if (str.includes(' ')) return false;
+
+        // 正则解释：
+        // ^(https?:\/\/)?  -> 可选的 http:// 或 https://
+        // (
+        //   ([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}  -> 标准域名 (如 a.com, b.co.uk)
+        //   | localhost                     -> 本地 localhost
+        //   | (\d{1,3}\.){3}\d{1,3}         -> IP 地址 (如 192.168.1.1)
+        // )
+        // (:\d+)?          -> 可选端口号 (如 :8080)
+        // (\/.*)?$         -> 可选路径
+        const pattern = /^(https?:\/\/)?(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}|localhost|(\d{1,3}\.){3}\d{1,3})(:\d+)?(\/.*)?$/i;
+        
+        return pattern.test(str);
     },
 
     // 核心导航方法
@@ -12396,7 +12446,7 @@ async togglePlugin(plugin) {
     async webviewClick(uid, dblClick = false) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (async function() {
             const el = document.querySelector('[data-ai-id="${uid}"]');
@@ -12461,7 +12511,7 @@ async togglePlugin(plugin) {
     async webviewFill(uid, value) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         // 注意：这里需要把 value 传给 JS，使用 JSON.stringify 确保安全
         const script = `
         (async function() {
@@ -12536,7 +12586,7 @@ async togglePlugin(plugin) {
     async webviewFillForm(elements) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const dataStr = JSON.stringify(elements); 
 
         const script = `
@@ -12569,7 +12619,7 @@ async togglePlugin(plugin) {
     async webviewDrag(fromUid, toUid) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (function() {
             const src = document.querySelector('[data-ai-id="${fromUid}"]');
@@ -12611,7 +12661,7 @@ async togglePlugin(plugin) {
     async webviewHover(uid) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (function() {
             const el = document.querySelector('[data-ai-id="${uid}"]');
@@ -12631,19 +12681,12 @@ async togglePlugin(plugin) {
         return result;
     },
 
-    // --- 7. 文件上传 (上传本身耗时，不再额外增加人为延迟，或者加一点也行) ---
-    async webviewUploadFile(uid, filePath) {
-        // ... (保持之前的错误提示或 IPC 逻辑) ...
-        // 如果这里能成功上传，建议也加一个 await this._humanDelay();
-        return "Error: File upload requires IPC/CDP setup.";
-    },
-
     // --- 8. 处理弹窗 (无延迟) ---
     async webviewHandleDialog(action, promptText) {
         // ... (代码保持不变，弹窗处理通常是瞬时的) ...
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (function() {
             window.__ai_dialog_action = "${action}"; 
@@ -12658,23 +12701,86 @@ async togglePlugin(plugin) {
     },
 
     // --- 9. 按键 (增加延迟) ---
-    async webviewPressKey(keyCombo) {
+    async webviewPressKey(keyCombo, uid) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-        
+        wv.focus();
+
+        // 1. 获取元素坐标 (JS 只负责告诉我们它在哪)
+        const rectScript = `
+        (function() {
+            const el = document.querySelector('[data-ai-id="${uid}"]');
+            if (!el) return null;
+            
+            // 滚动到屏幕中间
+            el.scrollIntoView({behavior: "auto", block: "center", inline: "center"});
+            
+            // 获取相对于视口的精确坐标
+            const rect = el.getBoundingClientRect();
+            return {
+                x: rect.left + (rect.width / 2),
+                y: rect.top + (rect.height / 2)
+            };
+        })()
+        `;
+
         try {
+            const rect = await wv.executeJavaScript(rectScript);
+            if (!rect) return "Element not found: " + uid;
+
+            // ★ 关键修复：使用 sendInputEvent 发送真实的鼠标点击
+            // 这会强制操作系统将焦点转移到该坐标下的输入框
+            // 注意：x, y 是相对于 Webview 左上角的坐标
+            
+            // 1. 移动并按下鼠标
+            wv.sendInputEvent({ 
+                type: 'mouseDown', 
+                x: rect.x, 
+                y: rect.y, 
+                button: 'left', 
+                clickCount: 1 
+            });
+            
+            // 2. 抬起鼠标 (完成点击)
+            wv.sendInputEvent({ 
+                type: 'mouseUp', 
+                x: rect.x, 
+                y: rect.y, 
+                button: 'left', 
+                clickCount: 1 
+            });
+
+            // 等待点击生效，输入框激活光标
+            await new Promise(r => setTimeout(r, 400));
+
+            // 3. 处理按键
             const parts = keyCombo.split('+').map(k => k.trim());
-            const key = parts.pop();
+            let key = parts.pop(); 
             const modifiers = parts.map(m => m.toLowerCase());
             
+            if (key.toLowerCase() === 'enter') key = 'Enter';
+
+            // 4. 发送原生按键
+            // 模拟按下
             wv.sendInputEvent({ type: 'keyDown', keyCode: key, modifiers });
-            if (key.length === 1) wv.sendInputEvent({ type: 'char', keyCode: key, modifiers });
+            
+            // ★ 补充 char 事件：Enter 键经常需要配套一个 char code 13 (\r)
+            // 许多网页(特别是旧一点的或 React 封装的)依赖这个 char 事件来触发表单提交
+            if (key === 'Enter') {
+                wv.sendInputEvent({ type: 'char', keyCode: '\r', modifiers });
+            } else if (key.length === 1) {
+                wv.sendInputEvent({ type: 'char', keyCode: key, modifiers });
+            }
+
+            // 模拟按住停顿
+            await new Promise(r => setTimeout(r, Math.floor(Math.random() * 50) + 30));
+
+            // 模拟抬起
             wv.sendInputEvent({ type: 'keyUp', keyCode: key, modifiers });
             
-            // ★ 按键后等待
             await this._humanDelay();
             
-            return "Pressed " + keyCombo;
+            return "Pressed (Native) " + keyCombo + " on " + uid;
         } catch (e) {
             return "PressKey Error: " + e.message;
         }
@@ -12685,7 +12791,7 @@ async togglePlugin(plugin) {
         // ... (代码保持不变) ...
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         const script = `
         (function() {
             return new Promise((resolve) => {
@@ -12710,6 +12816,7 @@ async togglePlugin(plugin) {
     async captureWebviewScreenshot(fullPage = false, uid = null) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
+        wv.focus();
         try {
             // 1. 滚动 (如果指定元素)
             if (uid) {
@@ -12752,7 +12859,7 @@ async togglePlugin(plugin) {
     async executeInActiveWebview(codeStr, args = []) {
         const wv = this.getWebview();
         if (!wv) return "Error: No active webview";
-
+        wv.focus();
         try {
             const script = `(${codeStr})(...${JSON.stringify(args || [])})`;
             const result = await wv.executeJavaScript(script);

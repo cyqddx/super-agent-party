@@ -4649,46 +4649,119 @@ body {
 }
 
 /* =========================================
-   1. AI 推理与工具调用块 (适配多主题变量版)
+   AI 推理与工具展示 - 现代卡片 (右下角水印版)
    ========================================= */
 
-/* 通用块基础样式 */
+/* 1. 通用基础容器 */
 .highlight-block,
 .highlight-block-reasoning {
   position: relative;
-  margin: 16px 0;
-  padding: 16px;
-  border-radius: 8px;
-  font-size: 14px;
+  margin: 12px 0;
+  /* 顶部恢复紧凑，底部留出空间给水印 */
+  padding: 12px 16px 24px 16px; 
+  border-radius: 12px;
+  font-size: 13px;
   line-height: 1.6;
-  transition: all var(--transition-duration);
-  /* 使用透明度混合，让背景色在任何主题下都适配主色调 */
-  backdrop-filter: blur(4px);
+  width: auto;
+  max-width: 100%;
+  overflow-x: hidden; /* 防止内容撑开 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* --- AI 推理块 (Thinking) --- */
+/* -----------------------------------------
+   2. 推理块 (Thinking) - 暖色调
+   ----------------------------------------- */
 .highlight-block-reasoning {
-  /* 背景：使用 Warning 颜色的极淡版本 (利用 mix 混合背景色) */
-  background-color: color-mix(in srgb, var(--el-color-primary) 8%, var(--bg-color));
-  /* 边框：左侧加粗强调 */
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 20%, transparent);
-  border-left: 4px solid var(--el-color-primary);
-  /* 文字颜色 */
-  color: var(--el-text-color-primary);
-}
-
-/* --- 工具调用块 (Tools) --- */
-.highlight-block {
-  /* 背景：使用 Info/Primary 颜色的极淡版本 */
-  background-color: color-mix(in srgb, var(--el-color-info) 8%, var(--bg-color));
-  /* 边框 */
-  border: 1px solid color-mix(in srgb, var(--el-color-info) 20%, transparent);
-  border-left: 4px solid var(--el-color-info);
-  /* 文字：使用等宽字体增强代码感 */
-  font-family: var(--code-font-family, monospace);
+  /* 背景：极淡的暖色混合 */
+  background-color: rgba(255, 165, 0, 0.03); 
+  /* 左侧装饰线：保留方案一的设计感 */
+  border: none;
+  border-left: 3px solid var(--el-color-warning); 
+  
+  /* 文字样式 */
   color: var(--el-text-color-regular);
+  font-family: var(--el-font-family);
 }
 
+/* 右下角不起眼的水印 */
+.highlight-block-reasoning::after {
+  content: "THINKING PROCESS";
+  position: absolute;
+  bottom: 5px;
+  right: 12px;
+  font-size: 9px;           /* 极小字号 */
+  font-weight: 700;
+  color: var(--el-text-color-placeholder); /* 使用占位符颜色，非常淡 */
+  text-transform: uppercase;
+  letter-spacing: 1px;      /* 增加字间距，提升精致感 */
+  opacity: 0.5;             /* 进一步降低不透明度 */
+  pointer-events: none;     /* 不影响鼠标点击 */
+}
+
+/* 推理内容字体微调 */
+.highlight-block-reasoning p,
+.highlight-block-reasoning div {
+  margin: 0.5em 0;
+  opacity: 0.95;
+}
+
+/* -----------------------------------------
+   3. 工具块 (Tools) - 冷色调/科技感
+   ----------------------------------------- */
+.highlight-block {
+  /* 背景：极淡的冷色混合 */
+  background-color: color-mix(in srgb, var(--el-color-info) 6%, transparent);
+  /* 左侧装饰线：区分于推理块 */
+  border: none;
+  border-left: 3px solid var(--el-color-info);
+  
+  /* 文字：等宽字体 */
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+/* 右下角水印 */
+.highlight-block::after {
+  content: "TOOL OUTPUT";
+  position: absolute;
+  bottom: 5px;
+  right: 12px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--el-text-color-placeholder);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* -----------------------------------------
+   4. 交互与细节
+   ----------------------------------------- */
+
+/* 悬停效果：轻微上浮，背景加深 */
+.highlight-block:hover,
+.highlight-block-reasoning:hover {
+  background-color: rgba(0, 0, 0, 0.05); /* 通用加深 */
+  transform: translateY(-1px);
+}
+
+/* 内部滚动条美化 (当内容过长出现滚动时) */
+.highlight-block::-webkit-scrollbar,
+.highlight-block-reasoning::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+.highlight-block::-webkit-scrollbar-track,
+.highlight-block-reasoning::-webkit-scrollbar-track {
+  background: transparent;
+}
+.highlight-block::-webkit-scrollbar-thumb,
+.highlight-block-reasoning::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 4px;
+}
 /* =========================================
    2. Markdown 表格高级样式 & 下载按钮
    ========================================= */

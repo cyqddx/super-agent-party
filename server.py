@@ -645,6 +645,9 @@ async def dispatch_tool(tool_name: str, tool_params: dict,settings: dict) -> str
         press_key,
         evaluate_script,
         take_screenshot,
+        fill_form,
+        drag,
+        handle_dialog
     )
     _TOOL_HOOKS = {
         "DDGsearch_async": DDGsearch_async,
@@ -693,6 +696,9 @@ async def dispatch_tool(tool_name: str, tool_params: dict,settings: dict) -> str
         "hover": hover,
         "press_key": press_key,
         "wait_for": wait_for,
+        "fill_form":fill_form,
+        "drag": drag,
+        "handle_dialog": handle_dialog
     }
     if "multi_tool_use." in tool_name:
         tool_name = tool_name.replace("multi_tool_use.", "")

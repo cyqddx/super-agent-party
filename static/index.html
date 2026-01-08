@@ -6743,6 +6743,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                             :underline="false"
                             href="https://nodejs.org/en/download" 
                             target="_blank"
+                            v-if="chromeMCPSettings.type=='external'"
                           >
                             <el-icon class="mr-1">
                               <i class="fa-solid fa-key"></i>
@@ -12844,6 +12845,12 @@ function updateElement(el, rawMarkdown, formatFn) {
                               <div class="current-engine">
                                   <!-- 动态显示当前引擎的高清 Logo 图片 -->
                                   <img 
+                                      v-if="searchEngine === 'party'" 
+                                      src="./source/icon_shadow.png" 
+                                      class="engine-logo-img" 
+                                      alt="Party"
+                                  >
+                                  <img 
                                       v-if="searchEngine === 'bing'" 
                                       src="./source/providers/bing.png" 
                                       class="engine-logo-img" 
@@ -12861,6 +12868,15 @@ function updateElement(el, rawMarkdown, formatFn) {
                               
                               <!-- 下拉菜单：根据 showEngineDropdown 显示 -->
                               <div class="engine-dropdown" v-show="showEngineDropdown">
+                                  <div class="engine-item" 
+                                      @click="setSearchEngine('party')" 
+                                      :class="{active: searchEngine === 'party'}">
+                                  <img 
+                                      src="./source/icon_shadow.png" 
+                                      class="engine-logo-img" 
+                                      alt="party"
+                                  > Party
+                                  </div>
                                   <div class="engine-item" 
                                       @click="setSearchEngine('bing')" 
                                       :class="{active: searchEngine === 'bing'}">
@@ -12887,7 +12903,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                               type="text" 
                               v-model="welcomeSearchQuery" 
                               class="ios-search-input"
-                              :placeholder="searchEngine === 'bing' ? t('searchWithBing') : t('searchWithGoogle')"
+                              :placeholder="searchEngineplaceholder"
                               @focus="isSearchFocused = true"
                               @blur="isSearchFocused = false"
                               @keyup.enter="handleWelcomeSearch"
