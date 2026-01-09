@@ -12907,12 +12907,6 @@ function updateElement(el, rawMarkdown, formatFn) {
 
                     <!-- 操作栏 -->
                     <div class="message-actions">
-                        <el-tooltip v-if="mainAgent === 'super-model' || message.role !== 'system'" :content="t('edit')" placement="bottom">
-                            <el-button @click="openEditDialog(message.role, message.content,index)" circle size="small"><i class="fa-solid fa-pen-to-square"></i></el-button>
-                        </el-tooltip>
-                        <el-tooltip v-if="message.role === 'assistant'" :content="t('briefly')" placement="bottom">
-                            <el-button class="briefly-btn" @click="toggleBriefly(index)" circle size="small"><i class="fa-solid fa-asterisk"></i></el-button>
-                        </el-tooltip>
                         <el-tooltip v-if="message.role === 'assistant'" :content="t('rewrite')" placement="bottom">
                             <el-button class="rewrite-btn" @click="rewrite(index)" circle size="small"><i class="fa-solid fa-rotate"></i></el-button>
                         </el-tooltip>
