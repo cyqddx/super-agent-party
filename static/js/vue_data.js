@@ -760,7 +760,7 @@ let vue_data = {
       {"name": "a2aButton", "enabled": false},
       {"name": "httpButton", "enabled": false},
       {"name": "comfyuiButton", "enabled": false},
-      {"name": "vrmButton", "enabled": false},
+      {"name": "vrmButton", "enabled": true},
       {"name": "behaviorBotton", "enabled": false}
     ],
     showVrmModelDialog: false,

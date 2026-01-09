@@ -2147,25 +2147,6 @@ let vue_methods = {
     },
     async autoSaveSettings() {
       return new Promise((resolve, reject) => {
-        // 同步 MoreButtonDict 的修改到对应的字典中
-        if (this.isMobile) {
-          this.smallMoreButtonDict = this.smallMoreButtonDict.map(existingButton => {
-            const currentButton = this.MoreButtonDict.find(button => button.name === existingButton.name);
-            if (currentButton) {
-              return { ...existingButton, enabled: currentButton.enabled };
-            }
-            return existingButton;
-          });
-        } else {
-          this.largeMoreButtonDict = this.largeMoreButtonDict.map(existingButton => {
-            const currentButton = this.MoreButtonDict.find(button => button.name === existingButton.name);
-            if (currentButton) {
-              return { ...existingButton, enabled: currentButton.enabled };
-            }
-            return existingButton;
-          });
-        }
-
         // 构造 payload（保持原有逻辑）
         const payload = {
           ...this.settings,
