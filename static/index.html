@@ -187,7 +187,6 @@ function updateElement(el, rawMarkdown, formatFn) {
       >
         
         <!-- 2. 标签栏 (边缘滚动容器) -->
-        <!-- 占据中间剩余空间 -->
         <div 
             class="integrated-tabs-container" 
             ref="tabsContainerRef"
@@ -195,6 +194,7 @@ function updateElement(el, rawMarkdown, formatFn) {
             @mouseleave="stopEdgeScroll"
         >
             <div class="tabs-scroll-wrapper" ref="tabsWrapperRef">
+                <!-- 现有的标签页循环 -->
                 <div 
                     v-for="tab in browserTabs" 
                     :key="tab.id"
@@ -213,6 +213,11 @@ function updateElement(el, rawMarkdown, formatFn) {
                         <i class="fa-solid fa-xmark"></i>
                     </span>
                 </div>
+
+                <!-- ★★★ 修改点：将新建按钮移到这里 ★★★ -->
+                <button class="new-tab-inline" @click="addNewTab" :title="t('newTab')">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
             </div>
         </div>
         <!-- 1. 地址栏 (现在排在最左边) -->
@@ -233,11 +238,6 @@ function updateElement(el, rawMarkdown, formatFn) {
         <!-- 3. 右侧控制组：新建标签 + 导航按钮 -->
         <!-- 放在一起 -->
         <div class="browser-controls-group">
-            <!-- 新建标签 -->
-            <button class="ib-btn new-tab-plus" @click="addNewTab" :title="t('newTab')">
-                <i class="fa-solid fa-plus"></i>
-            </button>
-            
             <button 
                 class="ib-btn" 
                 :class="{ 'is-favorite': isCurrentTabFavorite }"
