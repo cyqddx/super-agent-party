@@ -187,6 +187,33 @@ if (os.platform() === 'win32') {
   pythonExec = path.join('.venv', 'bin', 'python3');
 }
 
+
+function getCleanUserAgent() {
+  const chromeVersion = '124.0.0.0'; // 必须与前端代码中的版本保持一致！
+  const baseUA = `Mozilla/5.0 ({os_info}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
+  
+  let osInfo = '';
+  // Node.js 环境直接用 process.platform
+  switch (process.platform) {
+    case 'darwin':
+      osInfo = 'Macintosh; Intel Mac OS X 10_15_7';
+      break;
+    case 'win32':
+      osInfo = 'Windows NT 10.0; Win64; x64';
+      break;
+    case 'linux':
+      osInfo = 'X11; Linux x86_64';
+      break;
+    default:
+      osInfo = 'Windows NT 10.0; Win64; x64';
+  }
+
+  return baseUA.replace('{os_info}', osInfo);
+}
+
+// 提前计算好，供后面使用
+const REAL_CHROME_UA = getCleanUserAgent();
+
 let mainWindow
 let loadingWindow
 let tray = null
@@ -629,8 +656,8 @@ function setupDownloadListener(win) {
 
     // B. ★★★ 关键修复：监听 Webview 的隔离会话 ★★★
     // 这里的字符串必须和你 HTML 里 <webview partition="..."> 的值一模一样！
-    // 你之前的代码里写的是 'persist:browser-session'
-    const webviewSession = session.fromPartition('persist:browser-session');
+    // 你之前的代码里写的是 'persist:party-browser-session'
+    const webviewSession = session.fromPartition('persist:party-browser-session');
     
     webviewSession.on('will-download', (event, item, webContents) => {
         // 让主窗口 (win) 去通知渲染进程
@@ -723,9 +750,41 @@ ipcMain.handle('get-window-size', (event) => {
   return win.getSize();
 });
 
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess');
+app.commandLine.appendSwitch('ignore-certificate-errors');
+app.commandLine.appendSwitch('disable-features', 'CrossOriginOpenerPolicy,SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure');
 // 只有在获得锁（第一个实例）时才执行初始化
 app.whenReady().then(async () => {
   try {
+
+
+  const partySession = session.fromPartition('persist:party-browser-session');
+  
+    // 2. 拦截请求头，强制替换 UA 并移除 Electron 特征
+    // urls: ['*://*/*'] 表示拦截所有 http/https 请求
+    partySession.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
+      
+      // 强制覆盖 User-Agent
+      details.requestHeaders['User-Agent'] = REAL_CHROME_UA;
+
+      // ★★★ 关键步骤：处理 Client Hints (Sec-Ch-Ua) ★★★
+      // 现代网站（Google/CF）不仅看 User-Agent，还看 Sec-Ch-Ua 头。
+      // Electron 默认会发送类似 "Electron;v=28..." 的头，这会直接暴露身份。
+      
+      // 方案 A: 直接删除这些头（简单有效，大多数网站兼容）
+      delete details.requestHeaders['Sec-Ch-Ua'];
+      delete details.requestHeaders['Sec-Ch-Ua-Mobile'];
+      delete details.requestHeaders['Sec-Ch-Ua-Platform'];
+      delete details.requestHeaders['Sec-Ch-Ua-Full-Version'];
+      delete details.requestHeaders['Sec-Ch-Ua-Full-Version-List'];
+
+      // 方案 B (进阶): 如果删除导致某些网站异常，你需要伪造它们（比较麻烦，通常方案A就够了）
+      // details.requestHeaders['Sec-Ch-Ua'] = '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"';
+
+      callback({ requestHeaders: details.requestHeaders });
+    });
+
     app.on('session-created', (sess) => {
         // console.log('发现新 Session 创建:', sess.getUserAgent()); 
         
@@ -790,6 +849,10 @@ app.whenReady().then(async () => {
             console.error('❌ [CDP] 读取端口文件失败:', e);
         }
     }
+
+    ipcMain.handle('get-app-path', () => {
+      return app.getAppPath();
+    });
 
     // 1. 获取 CDP 状态 (前端初始化用)
     ipcMain.handle('get-internal-cdp-info', () => {
