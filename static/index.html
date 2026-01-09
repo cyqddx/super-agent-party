@@ -12714,7 +12714,7 @@ function updateElement(el, rawMarkdown, formatFn) {
               <div class="browser-welcome-page" v-if="currentTab && !currentTab.url">
                   <div class="ios-welcome-container">
                       
-                      <h1 class="ios-title" @click="showFavorites = !showFavorites" title="Click to toggle favorites">
+                      <h1 class="ios-title" @click="showFavorites = !showFavorites;autoSaveSettings();" title="Click to toggle favorites">
                           Welcome to Party
                       </h1>
                       
@@ -12840,11 +12840,10 @@ function updateElement(el, rawMarkdown, formatFn) {
           <!-- 3. 右侧：Copilot 侧边栏 (复用 Chat 逻辑) -->
           <div 
             class="browser-copilot-sidebar" 
-            v-show="showBrowserChat"
-            style="width: 450px; border-left: 1px solid var(--el-border-color); background: var(--el-bg-color); display: flex; flex-direction: column; height: 100%; transition: width 0.3s;"
+            :class="{ 'sidebar-collapsed': !showBrowserChat }"
           >
             <!-- 聊天区域复用 -->
-            <div class="chat-area" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; height: 100%; width: 100%;">
+            <div class="chat-area" style="min-width: 450px;flex: 1; display: flex; flex-direction: column; overflow: hidden; height: 100%; width: 100%;">
                 
                 <!-- 消息列表 (flex: 1) -->
                 <div class="messages-container" ref="messagesContainer" v-if="!isCapsuleMode" @click.capture="handleMessageLinkClick" style="flex: 1; overflow-y: auto; padding-bottom: 10px;">

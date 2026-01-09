@@ -6801,3 +6801,30 @@ hr.footnotes-sep {
     font-size: 10px;
     color: var(--el-text-color-placeholder);
 }
+
+/* AI Browser 侧边栏基础样式 */
+.browser-copilot-sidebar {
+  width: 450px; /* 默认展开宽度 */
+  border-left: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden; /* 关键：隐藏收起时的内部内容 */
+  
+  /* 关键动画属性 */
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              opacity 0.2s ease,
+              border-left-width 0.1s; /* 边框也需要过渡，否则最后会留一条线 */
+  
+  opacity: 1;
+  flex-shrink: 0; /* 防止被左侧挤压 */
+}
+
+/* 收起状态的样式 */
+.browser-copilot-sidebar.sidebar-collapsed {
+  width: 0 !important;
+  border-left-width: 0 !important; /* 收起时去掉边框 */
+  opacity: 0;
+  pointer-events: none; /* 收起后禁止点击交互 */
+}
