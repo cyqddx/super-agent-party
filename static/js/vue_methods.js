@@ -11920,7 +11920,33 @@ async togglePlugin(plugin) {
 
     // --- Webview 导航控制 ---
     getWebview(id) {
-        return document.getElementById('webview-' + (id || this.currentTabId));
+        const wv = document.getElementById('webview-' + (id || this.currentTabId));
+        
+        // 1. 基础非空检查
+        if (!wv) {
+            console.warn("getWebview: Element not found for ID", id || this.currentTabId);
+            return null;
+        }
+
+        // 2. ★ 核心修改：检查元素是否真正连接在 DOM 树上
+        // 如果元素存在但 isConnected 为 false，说明 Vue 正在销毁它或还没挂载好
+        // 此时返回 null，让 Python 端捕获 "No active webview" 错误并触发重试
+        if (!wv.isConnected) {
+            console.warn("getWebview: Element found but detached from DOM (Zombie node).");
+            return null;
+        }
+
+        // 3. (可选) 检查 Electron 内部状态
+        // getWebContentsId 是 Electron webview 的原生方法，如果报错说明内部未初始化
+        try {
+            if (typeof wv.getWebContentsId !== 'function') {
+                return null;
+            }
+        } catch (e) {
+            return null;
+        }
+
+        return wv;
     },
 
     browserGoBack() {

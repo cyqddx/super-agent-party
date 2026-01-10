@@ -104,8 +104,11 @@ async def cdp_command(ws_url, method, params=None):
 
 async def call_vue_method(method_name, args_list=None):
     """
-    通用函数：调用 window.aiBrowser 的方法
+    通用函数：调用 window.aiBrowser 的方法 (带重试机制)
     """
+    max_retries = 3
+    retry_delay = 1.0 # 1秒等待
+
     ws_url = await get_main_window_ws()
     if not ws_url:
         return {"error": "Main window not found"}
@@ -116,37 +119,58 @@ async def call_vue_method(method_name, args_list=None):
         args_str = ", ".join(json_args)
     else:
         args_str = ""
-
-    # 调用 Vue 方法
+    
     expression = f"window.aiBrowser.{method_name}({args_str})"
-    
-    res = await cdp_command(ws_url, "Runtime.evaluate", {
-        "expression": expression,
-        "returnByValue": True, 
-        "awaitPromise": True   # 必须等待 Vue 的 async 方法完成
-    })
-    
-    # --- 错误处理 ---
-    if 'exceptionDetails' in res:
-        # 提取详细错误信息
-        exc = res['exceptionDetails']
-        msg = exc.get('text', 'Unknown Error')
-        if 'exception' in exc and 'description' in exc['exception']:
-            msg = f"{msg}: {exc['exception']['description']}"
-        return f"Error executing {method_name}: {msg}"
-    
-    # --- 关键修正：解析嵌套的 result 对象 ---
-    # CDP 返回格式: { "result": { "type": "string", "value": "..." } }
-    remote_object = res.get('result', {})
-    
-    if 'value' in remote_object:
-        return remote_object['value']
-    
-    # 如果返回的是 undefined (例如函数没有 return)，value 字段不存在
-    if remote_object.get('type') == 'undefined':
-        return "Success (No content returned)"
-        
-    return f"Operation completed (Type: {remote_object.get('type')})"
+
+    for attempt in range(max_retries):
+        # 每次重试都重新连接 WebSocket，防止 WS 链接本身断开
+        try:
+            res = await cdp_command(ws_url, "Runtime.evaluate", {
+                "expression": expression,
+                "returnByValue": True, 
+                "awaitPromise": True
+            })
+            
+            # 1. 检查 CDP 协议本身的异常
+            if 'exceptionDetails' in res:
+                exc = res['exceptionDetails']
+                msg = exc.get('text', 'Unknown Error')
+                if 'exception' in exc and 'description' in exc['exception']:
+                    msg = f"{msg}: {exc['exception']['description']}"
+                
+                # ★ 关键：如果遇到 Illegal invocation，抛出异常以触发重试
+                if "Illegal invocation" in msg or "GUEST_VIEW_MANAGER_CALL" in msg:
+                    print(f"[Warn] Retrying {method_name} due to Electron error: {msg}")
+                    raise ValueError("Electron Webview Error") # 触发 except 重试
+                
+                return f"Error executing {method_name}: {msg}"
+
+            # 2. 检查返回值是否包含错误信息 (因为你的 JS 代码里 try-catch 后返回了 "Fill Error: ...")
+            remote_object = res.get('result', {})
+            value = remote_object.get('value', "")
+            
+            # 如果返回值是字符串且包含 Electron 内部错误，也视为失败进行重试
+            if isinstance(value, str) and ("Illegal invocation" in value or "GUEST_VIEW_MANAGER_CALL" in value):
+                print(f"[Warn] Retrying {method_name} due to JS Result error: {value}")
+                raise ValueError("Electron Webview Error")
+
+            if 'value' in remote_object:
+                return remote_object['value']
+            
+            if remote_object.get('type') == 'undefined':
+                return "Success (No content returned)"
+                
+            return f"Operation completed (Type: {remote_object.get('type')})"
+
+        except Exception as e:
+            # 如果是最后一次尝试，则放弃
+            if attempt == max_retries - 1:
+                return f"Failed {method_name} after {max_retries} retries. Last error: {str(e)}"
+            
+            # 等待后重试
+            await asyncio.sleep(retry_delay)
+            # 有时候主窗口 WS URL 也会变，重新获取一下更稳妥
+            ws_url = await get_main_window_ws() or ws_url
 
 # ------------------------------------------
 # Interaction Tools (Complete List)
@@ -236,6 +260,14 @@ async def wait_for(text, timeout=1000):
 
 async def evaluate_script(function, args=None):
     """执行 JS"""
+    if "submit()" in function or "location" in function:
+        safe_function = f"""
+        setTimeout(function() {{
+            {function}
+        }}, 100);
+        'Command scheduled (Async execution for navigation safety)';
+        """
+        return await call_vue_method('executeInActiveWebview', [safe_function, args or []])
     return await call_vue_method('executeInActiveWebview', [function, args or []])
 
 async def take_screenshot(fullPage=False, uid=None):
