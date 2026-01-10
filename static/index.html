@@ -6748,6 +6748,17 @@ function updateElement(el, rawMarkdown, formatFn) {
                               <i class="fa-solid fa-key"></i>
                             </el-icon>{{ t('downloadNodeJS') }}
                           </el-link>
+                          <el-link
+                            type="primary"
+                            :underline="false"
+                            href="https://github.com/heshengtao/browser-for-sap/releases" 
+                            target="_blank"
+                            v-if="chromeMCPSettings.type=='external'"
+                          >
+                            <el-icon class="mr-1">
+                              <i class="fa-solid fa-key"></i>
+                            </el-icon>{{ t('gotoPartyExtension') }}
+                          </el-link>
                         </span>
                       </div>
                       <el-switch v-model="chromeMCPSettings.enabled" @click.stop @change="changeChromeMCPEnabled"/>
@@ -6790,6 +6801,11 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <el-alert type="info" :closable="false" class="mb-2" v-if="chromeMCPSettings.type=='internal'">
                         <div class="alert-content">
                           {{ t('browserNotice4') }}
+                        </div>
+                      </el-alert>
+                      <el-alert type="info" :closable="false" class="mb-2" v-if="chromeMCPSettings.type=='external'">
+                        <div class="alert-content">
+                          {{ t('browserNotice6') }}
                         </div>
                       </el-alert>
                     </div>
