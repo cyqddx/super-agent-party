@@ -50,6 +50,7 @@
       "static/js/preload.js",
       "static/skeleton.html",
       "static/js/shotPreload.js",
+      "static/js/webview-preload.js",
       "static/shotOverlay.html",
       "static/source/icon_tray.png"
     ],
