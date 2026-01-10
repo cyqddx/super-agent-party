@@ -1056,6 +1056,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                 <el-tooltip :content="t('screenshot')" placement="top">
                   <el-button
                     @click="toggleScreenshot(true)"
+                    :disabled="!isElectron"
                     class="icon-btn vision-btn"
                     type="default"
                     v-if="MoreButtonDict.find(b => b.name === 'screenshotButton')?.enabled||isCapsuleMode"
