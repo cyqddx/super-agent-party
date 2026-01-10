@@ -988,25 +988,6 @@ app.whenReady().then(async () => {
       }
       const y = windowConfig.y !== undefined ? windowConfig.y : defaultY;
 
-      // 将调试信息写入文件
-      const debugInfo = `
-=== VRM窗口位置调试信息 ===
-屏幕工作区尺寸: ${JSON.stringify({ width, height })}
-窗口配置: ${JSON.stringify(windowConfig)}
-窗口大小: ${JSON.stringify({ windowWidth, windowHeight })}
-计算后的窗口位置: ${JSON.stringify({ x, y })}
-屏幕边界计算:
-  右边界: ${width} - ${windowWidth} - 40 = ${width - windowWidth - 40}
-  Y坐标逻辑: ${height >= windowHeight ? '屏幕够高，放在底部' : '屏幕不够高，放在顶部'}
-  下边界/顶部: ${height >= windowHeight ? height - windowHeight : 0}
-===========================
-`;
-
-      const fs = require('fs');
-      const path = require('path');
-      const logPath = path.join(__dirname, 'vrm_debug.log');
-      fs.appendFileSync(logPath, debugInfo);
-
       const vrmWindow = new BrowserWindow({
         width: windowWidth,
         height: windowHeight,
