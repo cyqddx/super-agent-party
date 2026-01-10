@@ -187,7 +187,6 @@ function updateElement(el, rawMarkdown, formatFn) {
       >
         
         <!-- 2. 标签栏 (边缘滚动容器) -->
-        <!-- 占据中间剩余空间 -->
         <div 
             class="integrated-tabs-container" 
             ref="tabsContainerRef"
@@ -195,6 +194,7 @@ function updateElement(el, rawMarkdown, formatFn) {
             @mouseleave="stopEdgeScroll"
         >
             <div class="tabs-scroll-wrapper" ref="tabsWrapperRef">
+                <!-- 现有的标签页循环 -->
                 <div 
                     v-for="tab in browserTabs" 
                     :key="tab.id"
@@ -213,6 +213,11 @@ function updateElement(el, rawMarkdown, formatFn) {
                         <i class="fa-solid fa-xmark"></i>
                     </span>
                 </div>
+
+                <!-- ★★★ 修改点：将新建按钮移到这里 ★★★ -->
+                <button class="new-tab-inline" @click="addNewTab" :title="t('newTab')">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
             </div>
         </div>
         <!-- 1. 地址栏 (现在排在最左边) -->
@@ -233,11 +238,6 @@ function updateElement(el, rawMarkdown, formatFn) {
         <!-- 3. 右侧控制组：新建标签 + 导航按钮 -->
         <!-- 放在一起 -->
         <div class="browser-controls-group">
-            <!-- 新建标签 -->
-            <button class="ib-btn new-tab-plus" @click="addNewTab" :title="t('newTab')">
-                <i class="fa-solid fa-plus"></i>
-            </button>
-            
             <button 
                 class="ib-btn" 
                 :class="{ 'is-favorite': isCurrentTabFavorite }"
@@ -6757,7 +6757,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                       <el-form-item :label="t('browserType')"  v-if="isElectron">
                         <el-select
                           v-model="chromeMCPSettings.type"
-                          @change="handlechromeMCPTypeChange"
+                          @change="autoSaveSettings"
                           class="full-width-input"
                           :disabled="chromeMCPSettings.enabled"
                         >
@@ -7145,17 +7145,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </div>
                       </template>
                     </el-alert>
-                    <div class="browser-mode-btn-container" v-show="CLISettings.engine === 'cc'">
-                      <el-button
-                        class="browser-mode-btn"
-                        type="primary"
-                        @click="installClaudeCode"
-                        round
-                        size="large">
-                          <i class="fa-solid fa-download"></i>
-                          {{ t('installClaudeCode') }}
-                      </el-button>
-                    </div>
                   </div>
                   <div class="tool-item" v-show="CLISettings.engine === 'qc'">
                     <div class="tool-header">
@@ -7236,17 +7225,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         </div>
                       </template>
                     </el-alert>
-                    <div class="browser-mode-btn-container" v-show="CLISettings.engine === 'qc'">
-                      <el-button
-                        class="browser-mode-btn"
-                        type="primary"
-                        @click="installQwenCode"
-                        round
-                        size="large">
-                          <i class="fa-solid fa-download"></i>
-                          {{ t('installQwenCode') }}
-                      </el-button>
-                    </div>
                   </div>
                 </el-form> 
                 <!-- Web端提示 -->
@@ -9070,6 +9048,41 @@ function updateElement(el, rawMarkdown, formatFn) {
                       :label="t(option.label)"
                       :value="option.value">
                     </el-option>
+                  </el-select>
+                </el-form-item>
+              </div>
+            </div>
+
+            <div class="tool-item">
+              <div class="tool-header">
+                <span>
+                  <el-icon>
+                    <i class="fa-solid fa-language"></i>
+                  </el-icon>
+                  {{ t('targetLang') }}
+                </span>
+              </div>
+              <div class="tool-content">
+                <el-form-item class="form-item-align">
+                  <el-select
+                    v-model="targetLangSelected"
+                    filterable
+                    allow-create
+                    default-first-option
+                    :placeholder="t('targetLangPlaceholder')"
+                    @change="changeLanguage"
+                  >
+                    <el-option :label="t('systemLanguage')" value="system"></el-option>
+                    <el-option label="简体中文" value="简体中文"></el-option>
+                    <el-option label="繁體中文" value="繁體中文"></el-option>
+                    <el-option label="English" value="English"></el-option>
+                    <el-option label="Français" value="Français"></el-option>
+                    <el-option label="Язык" value="Язык"></el-option>
+                    <el-option label="Deutsch" value="Deutsch"></el-option>
+                    <el-option label="Español" value="Español"></el-option>
+                    <el-option label="Portuguese" value="Portuguese"></el-option>
+                    <el-option label="日本語" value="日本語"></el-option>
+                    <el-option label="한국어" value="한국어"></el-option>
                   </el-select>
                 </el-form-item>
               </div>
@@ -12700,7 +12713,9 @@ function updateElement(el, rawMarkdown, formatFn) {
                     :useragent="dynamicUserAgent" 
                     allowpopups
                     plugins
-                    partition="persist:browser-session"
+                    :preload="webviewPreloadPath"
+                    @ipc-message="handleWebviewIpcMessage"
+                    partition="persist:party-browser-session"
                     @did-start-loading="onDidStartLoading(tab.id)"
                     @did-stop-loading="onDidStopLoading(tab.id)"
                     @page-title-updated="onPageTitleUpdated(tab.id, $event)"
@@ -12708,6 +12723,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                     @new-window="onNewWindow(tab.id, $event)"
                     @dom-ready="onDomReady(tab.id)"
                     style="flex: 1; width: 100%; height: 100%;"
+                    webpreferences="contextIsolation=true, nodeIntegration=false, sandbox=true, webSecurity=true, enableRemoteModule=false" 
                 ></webview>
               </div>
 

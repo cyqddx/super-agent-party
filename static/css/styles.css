@@ -6241,6 +6241,7 @@ hr.footnotes-sep {
     border-radius: 12px;
     padding: 0 4px;
     height: 26px;
+    margin-right: 10px;
 }
 
 /* 垂直分割线 */
@@ -6827,4 +6828,38 @@ hr.footnotes-sep {
   border-left-width: 0 !important; /* 收起时去掉边框 */
   opacity: 0;
   pointer-events: none; /* 收起后禁止点击交互 */
+}
+
+/* --- 新建标签页按钮 (Chrome 风格) --- */
+.new-tab-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* 尺寸与位置适配 */
+  width: 28px;
+  height: 26px;      /* 与 .ib-tab 高度保持一致 */
+  margin-top: 4px;   /* 与 .ib-tab 的 margin-top 保持一致 */
+  margin-left: 2px;  /* 与最后一个标签保持微小间距 */
+  
+  /* 基础样式 */
+  background: transparent;
+  border: none;
+  border-radius: 6px; /* 与标签圆角一致 */
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  flex-shrink: 0;    /* 关键：防止标签过多时按钮被挤压 */
+  transition: background-color 0.2s, color 0.2s;
+  font-size: 12px;
+}
+
+/* 悬停效果 */
+.new-tab-inline:hover {
+  background-color: var(--el-fill-color-dark); /* 也就是 hover 时的浅灰色背景 */
+  color: var(--el-color-primary); /* 可选：悬停时图标变色 */
+}
+
+/* 适配移动端或触摸 */
+.new-tab-inline:active {
+  background-color: var(--el-fill-color-darker);
 }

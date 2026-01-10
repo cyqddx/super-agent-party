@@ -187,6 +187,33 @@ if (os.platform() === 'win32') {
   pythonExec = path.join('.venv', 'bin', 'python3');
 }
 
+
+function getCleanUserAgent() {
+  const chromeVersion = '124.0.0.0'; // 必须与前端代码中的版本保持一致！
+  const baseUA = `Mozilla/5.0 ({os_info}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
+  
+  let osInfo = '';
+  // Node.js 环境直接用 process.platform
+  switch (process.platform) {
+    case 'darwin':
+      osInfo = 'Macintosh; Intel Mac OS X 10_15_7';
+      break;
+    case 'win32':
+      osInfo = 'Windows NT 10.0; Win64; x64';
+      break;
+    case 'linux':
+      osInfo = 'X11; Linux x86_64';
+      break;
+    default:
+      osInfo = 'Windows NT 10.0; Win64; x64';
+  }
+
+  return baseUA.replace('{os_info}', osInfo);
+}
+
+// 提前计算好，供后面使用
+const REAL_CHROME_UA = getCleanUserAgent();
+
 let mainWindow
 let loadingWindow
 let tray = null
@@ -318,7 +345,7 @@ const globalConfig = loadEnvVariables();
 let SESSION_CDP_PORT = 0; // 初始为0
 let IS_INTERNAL_MODE_ACTIVE = false;
 
-if (globalConfig?.chromeMCPSettings?.type === 'internal') {
+if (globalConfig?.chromeMCPSettings?.type === 'internal' && globalConfig.chromeMCPSettings?.enabled) {
   
   // ★ 修改点 1：使用端口 '0'，让系统自动分配一个绝对安全的空闲端口
   app.commandLine.appendSwitch('remote-debugging-port', '0');
@@ -629,8 +656,8 @@ function setupDownloadListener(win) {
 
     // B. ★★★ 关键修复：监听 Webview 的隔离会话 ★★★
     // 这里的字符串必须和你 HTML 里 <webview partition="..."> 的值一模一样！
-    // 你之前的代码里写的是 'persist:browser-session'
-    const webviewSession = session.fromPartition('persist:browser-session');
+    // 你之前的代码里写的是 'persist:party-browser-session'
+    const webviewSession = session.fromPartition('persist:party-browser-session');
     
     webviewSession.on('will-download', (event, item, webContents) => {
         // 让主窗口 (win) 去通知渲染进程
@@ -722,10 +749,47 @@ ipcMain.handle('get-window-size', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   return win.getSize();
 });
-
+const CHROME_VERSION = '124.0.0.0';
+const CHROME_MAJOR = '124';
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess');
+app.commandLine.appendSwitch('disable-features', 'CrossOriginOpenerPolicy,SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure,LogAds');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
 // 只有在获得锁（第一个实例）时才执行初始化
 app.whenReady().then(async () => {
   try {
+
+
+    const partySession = session.fromPartition('persist:party-browser-session');
+
+    // 拦截请求头，进行深度伪装
+    partySession.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
+        const headers = details.requestHeaders;
+        
+        // 1. 强制 UA
+        headers['User-Agent'] = REAL_CHROME_UA;
+
+        // 2. 伪造 Sec-Ch-Ua (Client Hints)
+        // 这是 Google 检查的重点
+        const brand = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="99"`;
+        headers['Sec-Ch-Ua'] = brand;
+        headers['Sec-Ch-Ua-Mobile'] = '?0';
+        headers['Sec-Ch-Ua-Full-Version'] = `"${CHROME_VERSION}"`;
+        headers['Sec-Ch-Ua-Full-Version-List'] = brand;
+        
+        // 3. 平台伪装 (根据 process.platform 动态设置)
+        let platform = 'Windows';
+        if (process.platform === 'darwin') platform = 'macOS';
+        else if (process.platform === 'linux') platform = 'Linux';
+        headers['Sec-Ch-Ua-Platform'] = `"${platform}"`;
+
+        // 4. 删除 Electron 特征头
+        delete headers['Sec-Ch-Ua-Model']; // 桌面端通常没有 Model
+        delete headers['Electron-Major-Version'];
+        delete headers['X-Electron-App-Name'];
+
+        callback({ requestHeaders: headers });
+    });
     app.on('session-created', (sess) => {
         // console.log('发现新 Session 创建:', sess.getUserAgent()); 
         
@@ -790,6 +854,10 @@ app.whenReady().then(async () => {
             console.error('❌ [CDP] 读取端口文件失败:', e);
         }
     }
+
+    ipcMain.handle('get-app-path', () => {
+      return app.getAppPath();
+    });
 
     // 1. 获取 CDP 状态 (前端初始化用)
     ipcMain.handle('get-internal-cdp-info', () => {

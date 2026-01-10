@@ -2498,7 +2498,7 @@ async def generate_stream_response(client,reasoner_client, request: ChatRequest,
                             if not isinstance(results, AsyncIterator):
                                 # 老逻辑：一次性写完、一次性发
                                 async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
-                                    await f.write(results)
+                                    await f.write(str(results))
                                 html = (
                                     '<div class="highlight-block">'
                                     f'<div style="margin-bottom: 10px;">{tool_name_text}</div>'

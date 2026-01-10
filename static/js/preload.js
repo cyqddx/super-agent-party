@@ -47,7 +47,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 系统功能
   openExternal: (url) => shell.openExternal(url),
   openPath: (filePath) => shell.openPath(filePath),
-  getAppPath: () => app.getAppPath(),
+  getAppPath: () => ipcRenderer.invoke('get-app-path'),
   getPath: () => remote.app.getPath('downloads'),
   // 窗口控制
   windowAction: (action) => ipcRenderer.invoke('window-action', action),

@@ -12043,52 +12043,140 @@ async togglePlugin(plugin) {
 
             window.electronAPI.showContextMenu(menuType, data);
         });
-        this.updateWebviewTheme(tabId);
+        webview.send('set-i18n', {
+            translate: this.t('translate') || '翻译',
+            askAI: this.t('ask_ai') || '问 AI',
+            read: this.t('read') || '朗读',
+            copy: this.t('copy') || '复制'
+        });
+        //webview.openDevTools();
     },
 
-  // 新增：更新 Webview 内部样式的函数
-  updateWebviewTheme(tabId) {
-    const webview = document.getElementById('webview-' + tabId);
-    if (!webview) return;
+    // 1. 修改 IPC 消息处理函数
+    async handleWebviewIpcMessage(event) {
+        if (event.channel === 'ai-toolbar-action') {
+            const { action, text } = event.args[0];
+            if (!text) return;
 
-    // 1. 获取当前 URL，判断是否为 Markdown 或 纯文本文件
-    // 如果是普通网页（如 Google），则不注入，以免破坏人家原本的样式
-    const url = webview.getURL();
-    const isRawFile = url.endsWith('.md') || url.endsWith('.txt') || url.endsWith('.log') || url.includes('/uploaded_files/');
+            // 获取 webview 实例，用于回传数据
+            // 注意：event.target 就是 webview 元素
+            const webview = event.target; 
 
-    if (!isRawFile) return;
+            switch (action) {
+                case 'translate':
+                    // --- 1. 翻译/总结：直接调用后端 + 流式回传 ---
+                    // 不打开侧边栏，直接在 webview 原地显示
+                    this.streamTranslateInWebview(webview, text);
+                    break;
 
-    // 2. 获取主应用当前的 CSS 变量值
-    const rootStyles = getComputedStyle(document.documentElement);
-    const bgColor = rootStyles.getPropertyValue('--el-bg-color-page').trim();
-    const textColor = rootStyles.getPropertyValue('--text-color').trim();
-    
-    // 3. 构建要注入的 CSS
-    // 针对 Chrome 默认的文本查看器结构 (body > pre) 进行样式覆盖
-    const css = `
-      body {
-        background-color: ${bgColor} !important;
-        color: ${textColor} !important;
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      }
-      /* Markdown/文本通常被包裹在 pre 标签中 */
-      pre {
-        color: ${textColor} !important;
-        background-color: transparent !important;
-        white-space: pre-wrap; /* 自动换行，防止需横向滚动 */
-        word-wrap: break-word;
-      }
-      /* 针对可能存在的图片做自适应 */
-      img {
-        max-width: 100%;
-        height: auto;
-      }
-    `;
+                case 'ask':
+                    // --- 2. 问 AI：保留原逻辑，去侧边栏 ---
+                    this.showBrowserChat = true;
+                    // 如果你想自动添加提示词：
+                    this.userInput = `${text}`; 
+                    // this.sendMessage(); // 也就是让用户自己点发送，或者你取消注释自动发
+                    break;
 
-    // 4. 注入样式
-    // insertCSS 返回一个 promise，但通常不需要等待它
-    webview.insertCSS(css).catch(err => console.log('Insert CSS error:', err));
-  },
+                case 'read':
+                    // --- 3. 朗读：调用 TTS ---
+                    this.handleBrowserTTS(text);
+                    break;
+            }
+        }
+    },
+
+    // 2. 新增：流式请求后端并发送给 Webview
+    async streamTranslateInWebview(webview, text) {
+        if (!webview) return;
+        
+        console.log('开始请求翻译:', text);
+        webview.send('ai-stream-start');
+
+        try {
+            const host = window.electron?.server?.host || '127.0.0.1';
+            const port = window.electron?.server?.port || 3456;
+            const apiUrl = `http://${host}:${port}/simple_chat`;
+            const targetLang = this.target_lang || 'Simplified Chinese';
+            const sysPrompt = `You are a helpful translation assistant. Translate the following text to ${targetLang}. Only output the translated text.`;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: sysPrompt },
+                        { role: "user", content: text }
+                    ],
+                    stream: true
+                })
+            });
+
+            if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); 
+
+                for (const line of lines) {
+                    let trimmed = line.trim();
+                    if (!trimmed || trimmed === 'data: [DONE]') continue;
+                    
+                    // --- 修改核心：兼容多种格式 ---
+                    
+                    // 1. 如果是以 data: 开头（SSE标准格式），去掉前缀
+                    if (trimmed.startsWith('data:')) {
+                        trimmed = trimmed.replace(/^data:\s?/, '');
+                    }
+                    
+                    // 2. 尝试解析 JSON（现在无论是纯JSON还是去掉data后的JSON，都能解析）
+                    try {
+                        const data = JSON.parse(trimmed);
+                        const content = data.choices?.[0]?.delta?.content;
+                        
+                        if (content) {
+                            // console.log('Chunk:', content); 
+                            webview.send('ai-stream-chunk', content);
+                        }
+                    } catch (e) {
+                        // 忽略非 JSON 行（比如心跳包或注释）
+                        // console.log('Json parse failed for line:', trimmed);
+                    }
+                }
+            }
+            
+            webview.send('ai-stream-end');
+            console.log('流式传输结束');
+
+        } catch (error) {
+            console.error('Translation error:', error);
+            webview.send('ai-stream-chunk', `\n[Error: ${error.message}]`);
+        }
+    },
+
+    // 3. 修改：TTS 处理逻辑
+    handleBrowserTTS(text) {
+        // 停止之前的播放（如果有）
+        this.stopTTSActivities();
+        
+        // 设置长文本内容
+        this.readConfig.longText = text;
+        
+        // 稍微延迟确保状态更新，然后开始朗读
+        setTimeout(() => {
+            this.startRead();
+            
+            // 提示用户 (可选)
+            // showNotification(this.t('tts_started'), 'success');
+        }, 500);
+    },
 
     // 切换引擎下拉
     toggleEngineDropdown() {
@@ -12245,18 +12333,6 @@ async togglePlugin(plugin) {
             this.showDownloadDropdown = false;
             this.dropdownTimer = null;
         }, 300); 
-    },
-    async handlechromeMCPTypeChange() {
-        // 1. 先保存用户的选择
-        await window.electronAPI.saveChromeSettings(JSON.parse(JSON.stringify(this.chromeMCPSettings)));
-        await this.autoSaveSettings();
-        // 2. 如果切换到了“内置浏览器” (Internal)
-        if (this.chromeMCPSettings.type === 'internal') {
-          this.showRestartDialog = true;
-        } else {
-            // 如果切回 External，不需要重启，直接保存即可
-            // 此时如果端口还开着也没关系，Python 不连它就行
-        }
     },
 
     async initChromeMCPSettings() {

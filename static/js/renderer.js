@@ -682,6 +682,22 @@ const app = Vue.createApp({
     this.disconnectWebSocket();
   },
   async mounted() {
+    try {
+      const appPath = await window.electronAPI.getAppPath();
+      // 拼接路径： App根目录 + static/js/webview-preload.js
+      const fullPath = await window.electronAPI.pathJoin(appPath, 'static', 'js', 'webview-preload.js');
+      
+      // 2. 转换为 file:// 协议 URL
+      // 注意：Windows 下路径是反斜杠 \，需要替换为正斜杠 / 才能用于 URL
+      const fileUrl = 'file://' + (this.isWindows ? '/' : '') + fullPath.replace(/\\/g, '/');
+      
+      this.webviewPreloadPath = fileUrl;
+      
+      console.log('Webview Preload URL:', this.webviewPreloadPath); // 调试用
+    } catch (e) {
+      console.error('获取 Preload 路径失败:', e);
+    }
+
     // ★ 监听主进程发来的“开新标签”指令
     if (window.electronAPI && window.electronAPI.onNewTab) {
         window.electronAPI.onNewTab((url) => {
