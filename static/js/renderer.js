@@ -683,6 +683,16 @@ const app = Vue.createApp({
   },
   async mounted() {
     try {
+      if (window.electron && window.electron.ipcRenderer) {
+          window.electron.ipcRenderer.on('trigger-search', (text) => {
+              // 1. 将选中的文本填入地址栏变量
+              this.urlInput = text;
+              
+              // 2. 直接调用你现有的回车处理逻辑
+              // 这样就会完全复用你的正则判断、Google/Bing/Party 引擎选择逻辑
+              this.handleUrlEnter();
+          });
+      }
       const appPath = await window.electronAPI.getAppPath();
       // 拼接路径： App根目录 + static/js/webview-preload.js
       const fullPath = await window.electronAPI.pathJoin(appPath, 'static', 'js', 'webview-preload.js');

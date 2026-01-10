@@ -7598,14 +7598,14 @@ handleCreateDiscordSeparator(val) {
 
     if (this.chromeMCPSettings.enabled && this.chromeMCPSettings.type === 'internal') {
         if (!window.electronAPI) return;
-
+        await window.electronAPI.saveChromeSettings(JSON.parse(JSON.stringify(this.chromeMCPSettings)));
+        await this.autoSaveSettings();
         // 获取主进程实际状态
         const cdpInfo = await window.electronAPI.getInternalCDPInfo();
 
         if (!cdpInfo.active) {
             // 严重情况：前端想开，但主进程没开端口（说明没重启）
-            this.chromeMCPSettings.enabled = false; // 回滚开关
-            
+            // this.chromeMCPSettings.enabled = false; // 回滚开关
             this.showRestartDialog = true;
             
             return; // 终止后续流程

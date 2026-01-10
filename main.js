@@ -345,7 +345,7 @@ const globalConfig = loadEnvVariables();
 let SESSION_CDP_PORT = 0; // 初始为0
 let IS_INTERNAL_MODE_ACTIVE = false;
 
-if (globalConfig?.chromeMCPSettings?.type === 'internal' && globalConfig.chromeMCPSettings?.enabled) {
+if (globalConfig?.chromeMCPSettings?.type === 'internal' && globalConfig?.chromeMCPSettings?.enabled) {
   
   // ★ 修改点 1：使用端口 '0'，让系统自动分配一个绝对安全的空闲端口
   app.commandLine.appendSwitch('remote-debugging-port', '0');
@@ -1496,8 +1496,7 @@ app.whenReady().then(async () => {
           { 
             label: `Search "${data.text.length > 15 ? data.text.slice(0, 15) + '...' : data.text}"`,
             click: () => {
-              const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(data.text)}`;
-              win.webContents.send('create-tab', searchUrl);
+               win.webContents.send('trigger-search', `Search "${data.text}"`);
             } 
           },
           { type: 'separator' },

@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
     on: (channel, func) => {
       // 只允许特定的通道
-      const validChannels = ['backend-ready'];
+      const validChannels = ['backend-ready', 'trigger-search']; 
       if (validChannels.includes(channel)) {
         ipcRenderer.on(channel, (event, ...args) => func(...args));
       }
