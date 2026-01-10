@@ -955,7 +955,7 @@ function updateElement(el, rawMarkdown, formatFn) {
 
                 <el-tooltip :content="t('extension')" placement="top">
                   <el-button
-                    v-if="!isCapsuleMode&&!isAssistantMode"
+                    v-if="!isMobile"
                     @click="openExtensionsDialog"
                     class="icon-btn history-btn"
                     :type="!sidePanelURL ? 'default' : 'primary'"
@@ -1046,8 +1046,7 @@ function updateElement(el, rawMarkdown, formatFn) {
                     @click="visionSettings.desktopVision = !visionSettings.desktopVision; autoSaveSettings()"
                     class="icon-btn vision-btn"
                     :type="visionSettings.desktopVision ? 'primary' : 'default'"
-                    :disabled="!isElectron"
-                    v-if="MoreButtonDict.find(b => b.name === 'desktopVisionButton')?.enabled||isCapsuleMode"
+                    v-if="isElectron&&(MoreButtonDict.find(b => b.name === 'desktopVisionButton')?.enabled||isCapsuleMode)"
                     circle>
                     <i class="fa-solid fa-eye"></i>
                   </el-button>
@@ -1056,10 +1055,9 @@ function updateElement(el, rawMarkdown, formatFn) {
                 <el-tooltip :content="t('screenshot')" placement="top">
                   <el-button
                     @click="toggleScreenshot(true)"
-                    :disabled="!isElectron"
                     class="icon-btn vision-btn"
                     type="default"
-                    v-if="MoreButtonDict.find(b => b.name === 'screenshotButton')?.enabled||isCapsuleMode"
+                    v-if="isElectron&&(MoreButtonDict.find(b => b.name === 'screenshotButton')?.enabled||isCapsuleMode)"
                     circle>
                     <i class="fa-solid fa-scissors"></i>
                   </el-button>
