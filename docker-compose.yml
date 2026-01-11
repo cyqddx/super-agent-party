@@ -12,7 +12,7 @@ services:
 
   # 前端网关服务
   gateway:
-    image: ailm32442/nigix-for-sap:latest
+    image: ailm32442/nginx-for-sap:latest
     container_name: sap-gateway
     restart: unless-stopped
     ports:
