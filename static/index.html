@@ -2503,26 +2503,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                       </template>
                     </el-dialog>
                   </el-tab-pane>
-                  <el-tab-pane :label="t('moreCard')" name="card">
-                      <!-- 供应商选择区域 -->
-                      <el-form-item>
-                        <div class="vendor-grid">
-                          <div 
-                            v-for="item in CardOptions" 
-                            :key="item.value"
-                            class="vendor-card"
-                            @click="goToCardURL(item.value)"
-                          >
-                            <img 
-                              :src="getCardVendorLogo(item.value)" 
-                              :alt="item.label"
-                              class="vendor-logo"
-                            />
-                            <div class="vendor-name">{{ t(item.label) }}</div>
-                          </div>
-                        </div>
-                      </el-form-item>
-                  </el-tab-pane>
                   <!-- 系统提示词标签页 -->
                   <el-tab-pane :label="t('addSystemPrompt')" name="prompts">
                     <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;">
@@ -2635,26 +2615,6 @@ function updateElement(el, rawMarkdown, formatFn) {
                         <el-button type="primary" @click="savePrompt" :disable="!promptForm.name || !promptForm.content">{{ t('confirm') }}</el-button>
                       </template>
                     </el-dialog>
-                  </el-tab-pane>
-                  <el-tab-pane :label="t('moreSystemPrompt')" name="market">
-                      <!-- 供应商选择区域 -->
-                      <el-form-item>
-                        <div class="vendor-grid">
-                          <div 
-                            v-for="item in PromptOptions" 
-                            :key="item.value"
-                            class="vendor-card"
-                            @click="goToPromptURL(item.value)"
-                          >
-                            <img 
-                              :src="getPromptVendorLogo(item.value)" 
-                              :alt="item.label"
-                              class="vendor-logo"
-                            />
-                            <div class="vendor-name">{{ t(item.label) }}</div>
-                          </div>
-                        </div>
-                      </el-form-item>
                   </el-tab-pane>
                 </el-tabs>
               </div>
